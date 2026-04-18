@@ -3,6 +3,7 @@ import BottomNavBar, { type NavTab } from './BottomNavBar'
 import qrCodeIcon from '../assets/qrcode.svg'
 import headphonesIcon from '../assets/audifonos.svg'
 import bellIcon from '../assets/campana.svg'
+import bannerMiPana from '../assets/bannermipana.png'
 
 // Quick action button component
 function QuickAction({ icon, label }: { icon: React.ReactNode; label: string }) {
@@ -333,9 +334,11 @@ function CobrarContent() {
 function GestionarContent({
   balanceHidden,
   setBalanceHidden,
+  onMiPanaClick,
 }: {
   balanceHidden: boolean
   setBalanceHidden: (v: boolean) => void
+  onMiPanaClick: () => void
 }) {
   return (
     <>
@@ -424,8 +427,35 @@ function GestionarContent({
         </div>
       </div>
 
+      {/* Banner Mi Pana */}
+      <div style={{ padding: '20px 20px 0 20px' }}>
+        <button
+          onClick={onMiPanaClick}
+          style={{
+            width: '100%',
+            padding: 0,
+            border: 'none',
+            background: 'none',
+            cursor: 'pointer',
+            borderRadius: 16,
+            overflow: 'hidden',
+          }}
+        >
+          <img
+            src={bannerMiPana}
+            alt="Habla con Mi Pana"
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              borderRadius: 16,
+            }}
+          />
+        </button>
+      </div>
+
       {/* Novedades Deuna Negocios */}
-      <div style={{ padding: '28px 20px 20px 20px' }}>
+      <div style={{ padding: '20px 20px 20px 20px' }}>
         <h2 style={{ margin: '0 0 16px 0', fontSize: 17, fontWeight: 700, color: '#111827' }}>
           Novedades Deuna Negocios
         </h2>
@@ -679,7 +709,11 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           {activeTab === 'cobrar' ? (
             <CobrarContent />
           ) : (
-            <GestionarContent balanceHidden={balanceHidden} setBalanceHidden={setBalanceHidden} />
+            <GestionarContent
+              balanceHidden={balanceHidden}
+              setBalanceHidden={setBalanceHidden}
+              onMiPanaClick={() => onNavigate?.('mi-pana')}
+            />
           )}
         </div>
 
