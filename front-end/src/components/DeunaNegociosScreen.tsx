@@ -65,18 +65,15 @@ function QRCode() {
           className="bg-white rounded-full flex items-center justify-center shadow"
           style={{ width: 52, height: 52, border: '3px solid white' }}
         >
-          <span
+          <img
+            src="/Negocios.svg"
+            alt="deuna logo"
             style={{
-              color: '#5B21B6',
-              fontWeight: 900,
-              fontStyle: 'italic',
-              fontSize: 20,
-              lineHeight: 1,
-              fontFamily: 'Arial Black, Arial, sans-serif',
+              width: 40,
+              height: 40,
+              objectFit: 'contain',
             }}
-          >
-            d!
-          </span>
+          />
         </div>
       </div>
     </div>
@@ -324,36 +321,14 @@ export default function DeunaNegociosScreen({ onLogin }: DeunaNegociosScreenProp
               paddingBottom: 8,
             }}
           >
-            <span
+            <img
+              src="/Negocios.png"
+              alt="deuna Negocios"
               style={{
-                color: '#5B21B6',
-                fontWeight: 900,
-                fontStyle: 'italic',
-                fontSize: 34,
-                lineHeight: 1.1,
-                fontFamily: 'Arial Black, Arial, sans-serif',
-                letterSpacing: -0.5,
+                height: 80,
+                objectFit: 'contain',
               }}
-            >
-              deuna!
-            </span>
-            <div
-              style={{
-                background: '#0F766E',
-                color: '#ffffff',
-                fontSize: 13,
-                fontWeight: 600,
-                paddingLeft: 18,
-                paddingRight: 18,
-                paddingTop: 4,
-                paddingBottom: 4,
-                borderRadius: 6,
-                marginTop: 6,
-                letterSpacing: 0.2,
-              }}
-            >
-              Negocios
-            </div>
+            />
           </div>
 
           {/* QR code */}

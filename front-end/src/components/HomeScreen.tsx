@@ -84,35 +84,22 @@ function DeunaBadge() {
     <div
       style={{
         background: '#0F766E',
-        borderRadius: 6,
-        padding: '4px 8px',
+        borderRadius: 8,
+        padding: '6px 6px',
         display: 'inline-flex',
         alignItems: 'center',
         alignSelf: 'flex-start',
       }}
     >
-      <span
+      <img
+        src="/deunablanco.svg"
+        alt="deuna badge"
         style={{
-          color: '#ffffff',
-          fontWeight: 900,
-          fontStyle: 'italic',
-          fontSize: 12,
-          fontFamily: 'Arial Black, Arial, sans-serif',
+          width: 24,
+          height: 24,
+          objectFit: 'contain',
         }}
-      >
-        d!
-      </span>
-      <span
-        style={{
-          color: '#ffffff',
-          fontSize: 7,
-          fontWeight: 500,
-          marginLeft: 2,
-          opacity: 0.9,
-        }}
-      >
-        Negocios
-      </span>
+      />
     </div>
   )
 }
