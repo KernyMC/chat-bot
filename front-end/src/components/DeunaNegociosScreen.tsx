@@ -1,4 +1,6 @@
 import { createElement, useState } from 'react'
+import qrCodeIcon from '../assets/qrcode.svg'
+import mipanaOutlineIcon from '../assets/mipanaoutline.svg'
 
 // 25x25 QR-like grid: 1=black, 0=white
 const QR_GRID: number[][] = [
@@ -237,21 +239,6 @@ function FingerprintModal({
         </p>
       </div>
     </div>
-  )
-}
-
-// Chatbot icon
-function ChatbotIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="#5B21B6">
-      <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.4 0-2.74-.36-3.91-1l-.28-.17-2.91.76.78-2.84-.19-.31A7.94 7.94 0 014 12c0-4.42 3.58-8 8-8s8 3.58 8 8-3.58 8-8 8zm-3-9h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z" />
-      <circle cx="9" cy="10" r="1.5" fill="#5B21B6" />
-      <circle cx="15" cy="10" r="1.5" fill="#5B21B6" />
-      <path
-        d="M12 16c1.5 0 2.7-.8 3.2-2H8.8c.5 1.2 1.7 2 3.2 2z"
-        fill="#5B21B6"
-      />
-    </svg>
   )
 }
 
@@ -507,7 +494,17 @@ export default function DeunaNegociosScreen({ onLogin }: DeunaNegociosScreenProp
                   transition: 'transform 0.2s',
                 }}
               >
-                <ChatbotIcon />
+                <img
+                  src={mipanaOutlineIcon}
+                  alt="Mi Pana"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    objectFit: 'contain',
+                    filter:
+                      'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%) drop-shadow(0.5px 0 0 #5B21B6) drop-shadow(-0.5px 0 0 #5B21B6)',
+                  }}
+                />
               </div>
               <span style={{ fontSize: 11, color: '#5B21B6', fontWeight: 600 }}>Mi Pana</span>
             </button>
@@ -535,17 +532,16 @@ export default function DeunaNegociosScreen({ onLogin }: DeunaNegociosScreenProp
                   justifyContent: 'center',
                 }}
               >
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9V5a2 2 0 012-2h4"/>
-                  <path d="M3 15v4a2 2 0 002 2h4"/>
-                  <path d="M21 9V5a2 2 0 00-2-2h-4"/>
-                  <path d="M21 15v4a2 2 0 01-2 2h-4"/>
-                  <rect x="7" y="7" width="4" height="4" rx="0.5"/>
-                  <rect x="13" y="7" width="4" height="4" rx="0.5"/>
-                  <rect x="7" y="13" width="4" height="4" rx="0.5"/>
-                  <rect x="14" y="14" width="2" height="2"/>
-                  <rect x="16" y="16" width="2" height="2"/>
-                </svg>
+                <img
+                  src={qrCodeIcon}
+                  alt="Escanear QR"
+                  style={{
+                    width: 26,
+                    height: 26,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%)',
+                  }}
+                />
               </div>
               <span style={{ fontSize: 11, color: '#4B5563', fontWeight: 500 }}>Escaneando QR</span>
             </button>

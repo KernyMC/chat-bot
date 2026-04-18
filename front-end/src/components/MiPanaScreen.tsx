@@ -13,7 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
-import mipanaIcon from '../assets/mipana.svg'
+import mipanaOutlineIcon from '../assets/mipanaoutline.svg'
 import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
   callAI,
@@ -95,13 +95,14 @@ function BotAvatar() {
       }}
     >
       <img
-        src={mipanaIcon}
+        src={mipanaOutlineIcon}
         alt="Mi Pana"
         style={{
           width: 22,
           height: 22,
           objectFit: 'contain',
-          filter: 'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%)',
+          filter:
+            'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%) drop-shadow(0.5px 0 0 #5B21B6) drop-shadow(-0.5px 0 0 #5B21B6)',
         }}
       />
     </div>
@@ -722,13 +723,14 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 }}
               >
                 <img
-                  src={mipanaIcon}
+                  src={mipanaOutlineIcon}
                   alt="Mi Pana"
                   style={{
                     width: 20,
                     height: 20,
                     objectFit: 'contain',
-                    filter: 'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%)',
+                    filter:
+                      'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%) drop-shadow(0.5px 0 0 #5B21B6) drop-shadow(-0.5px 0 0 #5B21B6)',
                   }}
                 />
               </div>
