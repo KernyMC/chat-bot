@@ -502,6 +502,15 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
         justifyContent: 'center',
       }}
     >
+      <style>{`
+        .home-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .home-scroll::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       {/* Device shell */}
       <div
         style={{
@@ -519,6 +528,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       >
         {/* Scrollable content */}
         <div
+          className="home-scroll"
           style={{
             flex: 1,
             overflowY: 'auto',
