@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from collections import defaultdict
 from typing import Any
 
@@ -20,6 +21,40 @@ COLOR_PRIMARY = "#0F766E"
 COLOR_SECONDARY = "#2563EB"
 COLOR_WARNING = "#D97706"
 COLOR_GRID = "#E5E7EB"
+
+MESES_ES = {
+    1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr",
+    5: "May", 6: "Jun", 7: "Jul", 8: "Ago",
+    9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic",
+}
+
+
+def _parse_date(v: Any) -> datetime.date | None:
+    """Convierte datetime.date, datetime.datetime o string ISO a date."""
+    if isinstance(v, datetime.datetime):
+        return v.date()
+    if isinstance(v, datetime.date):
+        return v
+    try:
+        return datetime.date.fromisoformat(str(v)[:10])
+    except Exception:
+        return None
+
+
+def _fmt_dia(v: Any) -> str:
+    """'14-Abr' para ejes de ventas por día o semana."""
+    d = _parse_date(v)
+    if d:
+        return f"{d.day}-{MESES_ES[d.month]}"
+    return str(v)
+
+
+def _fmt_mes(v: Any) -> str:
+    """'Abr-26' para ejes de ventas por mes."""
+    d = _parse_date(v)
+    if d:
+        return f"{MESES_ES[d.month]}-{str(d.year)[2:]}"
+    return str(v)
 
 
 def _go() -> Any:
@@ -76,6 +111,8 @@ def chart_for_result(
         return patrones_compra_proveedor_chart(rows)
     if view_name in {"frecuencia_clientes", "clientes_perdidos"}:
         return clientes_chart(rows, title="Clientes y frecuencia")
+    if view_name == "frecuencia_clientes_mensual":
+        return clientes_chart(rows, title="Clientes del mes")
 
     return None
 
@@ -88,20 +125,22 @@ def ventas_diarias_chart(result: list[dict[str, Any]]) -> Any | None:
     go = _go()
     fig = go.Figure()
 
+    x_vals = [_fmt_dia(v) for v in _column(rows, "dia")]
     # Un solo punto (ej: mejor día del año) → barra, no línea
     if len(rows) == 1:
         fig.add_trace(
             go.Bar(
-                x=_column(rows, "dia"),
+                x=x_vals,
                 y=_column(rows, "total"),
                 name="Ventas",
                 marker={"color": COLOR_PRIMARY},
             )
         )
+        fig.update_xaxes(type="category")
     else:
         fig.add_trace(
             go.Scatter(
-                x=_column(rows, "dia"),
+                x=x_vals,
                 y=_column(rows, "total"),
                 mode="lines+markers",
                 name="Ventas",
@@ -129,16 +168,19 @@ def ventas_periodo_chart(
     if x_key not in rows[0]:
         x_key = "mes" if "mes" in rows[0] else "semana"
 
+    fmt = _fmt_mes if x_key == "mes" else _fmt_dia
+    x_vals = [fmt(v) for v in _column(rows, x_key)]
     go = _go()
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=_column(rows, x_key),
+            x=x_vals,
             y=_column(rows, "total"),
             name="Ventas",
             marker={"color": COLOR_SECONDARY},
         )
     )
+    fig.update_xaxes(type="category")
     label = "mes" if x_key == "mes" else "semana"
     return _apply_layout(fig, f"Ventas por {label}", "USD")
 

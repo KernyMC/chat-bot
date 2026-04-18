@@ -583,7 +583,171 @@ data/transacciones.csv      ✅ done  ← 2025-01-01→2026-04-18, 8020 tx, hoy=
 
 ## PENDIENTES — funcionalidades identificadas, no implementadas
 
-### ⏳ Pregunta de clarificación para casos ambiguos
+### ✅ Consulta secundaria para preguntas compuestas (cliente + qué compra)
+
+**Problema detectado en pruebas:** Cuando el usuario pregunta "¿Quién me visita más y qué compra?",
+el agente consulta `frecuencia_clientes` correctamente pero luego dice "no tengo qué compra,
+pregúntame por categorías" — sin dar la categoría. La pregunta de clarificación queda incompleta.
+
+**Diseño acordado (opción simple, sin cambiar arquitectura del grafo):**
+
+El `executor_node` detecta `requires_product_disclaimer = True` + ejecución SQL exitosa.
+En ese caso corre una **segunda consulta hardcodeada** contra `categorias_populares` y la guarda
+en `sql_result_secondary`. El sintetizador recibe ambos resultados y fusiona la respuesta.
+
+**La consulta secundaria es fija (no generada por LLM):**
+```python
+SECONDARY_SQL_CATEGORIAS = """
+SELECT categoria, num_transacciones, ingreso_total, ticket_promedio
+FROM categorias_populares
+WHERE comercio_id = ?
+ORDER BY ingreso_total DESC
+LIMIT 3
+"""
+# Parámetro: state["comercio_id"] (o sin filtro si es None)
+```
+
+**Cambios requeridos — exactamente 2 archivos:**
+
+**`agent/nodes.py`:**
+1. `AgentState`: añadir `sql_result_secondary: list[dict[str, Any]]` (default `[]`)
+2. `executor_node`: al final, si `state["sql_result"]` no está vacío Y `state.get("requires_product_disclaimer")` es True:
+   - Ejecutar `SECONDARY_SQL_CATEGORIAS` con `state["comercio_id"]` como parámetro
+   - Si `comercio_id` es None, ejecutar sin filtro WHERE
+   - Guardar resultado en `state["sql_result_secondary"]`
+   - Si falla la consulta secundaria: ignorar el error (no bloquear la respuesta principal)
+
+**`agent/prompts.py`:**
+3. `SYNTHESIZER_PROMPT_TEMPLATE`: añadir campo `resultado_secundario` al final del template
+4. Añadir regla: "Si `resultado_secundario` tiene datos Y `requires_product_disclaimer` es True,
+   úsalos como la respuesta a la pregunta de categorías. Ejemplo de respuesta fusionada:
+   'Tu cliente más frecuente es Diego (61 visitas, $1128.24). No tengo el detalle exacto de
+   lo que compra, pero en tu tienda lo que más mueve plata es {categoria_top} con ${ingreso_top}.
+   Probablemente Diego también elige eso.'"
+
+**`agent/nodes.py` — también actualizar `synthesizer_node`:**
+5. Pasar `sql_result_secondary` al template como `resultado_secundario=json.dumps(...)`
+
+**Restricciones importantes:**
+- La consulta secundaria NO pasa por `sql_generator` ni `validator` — es código de confianza
+- Si `comercio_id` es None, ejecutar: `SELECT categoria... FROM categorias_populares ORDER BY ingreso_total DESC LIMIT 3` (sin WHERE)
+- Latencia adicional esperada: <0.1s (DuckDB en memoria, sin LLM)
+- `sql_result_secondary` debe estar en `AgentState` con `total=False` para no romper LangGraph
+
+**Caso de prueba para validar:**
+- P: "¿Cuál es el cliente que más me visita, y qué es lo que más compra?"
+- R esperada: nombre del top cliente + visitas + total gastado + disclaimer honesto + top 3 categorías del comercio como aproximación
+
+---
+
+### ✅ TAREA A — 3 fixes críticos en agent/prompts.py (un solo archivo)
+
+Detectados en pruebas con las 15 preguntas. Solo tocar `agent/prompts.py`.
+
+**Fix 1 — CURRENT_DATE prohibido (rompe P1 "¿cuánto vendí esta semana?" y P4)**
+
+En `SQL_GENERATOR_PROMPT_TEMPLATE`, añadir después de "Devuelve SOLO SQL":
+```
+- NUNCA uses CURRENT_DATE, NOW() ni funciones de fecha del sistema operativo.
+  La fecha de referencia fija del dataset es DATE '2026-04-18'.
+  Traduce así:
+    "hoy"          → DATE '2026-04-18'
+    "esta semana"  → semana que contiene DATE '2026-04-18'
+                     → DATE_TRUNC('week', DATE '2026-04-18') = DATE '2026-04-14'
+    "este mes"     → DATE_TRUNC('month', DATE '2026-04-18') = DATE '2026-04-01'
+    "mes pasado"   → DATE_TRUNC('month', DATE '2026-03-01')
+```
+
+**Fix 2 — Clasificador demasiado agresivo con "ambiguous" (rompe P11)**
+
+En `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`, en la definición de `ambiguous`, añadir:
+```
+- EXCEPCIÓN: si la pregunta incluye verbos de acción del comprador
+  (compra, comprar, compró, gasta, gastó, paga, pagó, consume), NO es ambiguous
+  aunque use "visita" o "vino" — clasificar como en_scope con vista frecuencia_clientes.
+  EJEMPLO: "¿quién me visita más y qué compra?" → en_scope, frecuencia_clientes.
+  EJEMPLO: "¿quién vino más y cuánto gastó?" → en_scope, frecuencia_clientes.
+```
+
+**Fix 3 — Mes sin año (rompe P13 "¿en qué hora vendo más en diciembre?")**
+
+En `SQL_GENERATOR_PROMPT_TEMPLATE`, añadir:
+```
+- Si la pregunta menciona un mes sin año explícito, deduce el año del dataset:
+    mayo–diciembre → siempre 2025 (solo existen en ese año en el dataset)
+    enero–abril    → usa 2026 si el contexto sugiere reciente, 2025 si no
+  Ejemplo: "diciembre" → DATE '2025-12-01'; "enero pasado" → DATE '2026-01-01'
+```
+
+---
+
+### ✅ TAREA B — Historial de conversación (Opción B)
+
+**Problema:** El agente procesa cada mensaje de forma aislada. Cuando el clasificador
+devuelve `scope = "ambiguous"` y el usuario responde "Cliente", el siguiente turno
+no tiene contexto de cuál era la pregunta original.
+
+**Diseño — 4 archivos:**
+
+**`agent/nodes.py`:**
+1. Añadir a `AgentState`:
+```python
+conversation_history: list[dict[str, str]]
+# Formato: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+# Máximo 6 entradas (3 turnos completos)
+```
+
+**`agent/graph.py`:**
+2. En `create_initial_state`: añadir `"conversation_history": []`
+3. `run_agent` debe aceptar `conversation_history: list[dict] = []` como parámetro
+   e inyectarlo al estado inicial.
+
+**`agent/prompts.py`:**
+4. En `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`, añadir ANTES de "Pregunta: {question}":
+```
+Historial reciente (últimos turnos — úsalo para entender preguntas de seguimiento):
+{conversation_history}
+```
+5. Añadir regla al clasificador:
+```
+- Si la pregunta actual es una respuesta corta a una clarificación previa
+  (ej. "Cliente", "Proveedor", "sí", "el de clientes"), reconstruye la intención
+  combinando el historial con la respuesta actual.
+  EJEMPLO: historial muestra "¿quién me visitó más en enero?" → ambiguous →
+  "¿Me puedes aclarar si hablamos de cliente o proveedor?" → usuario responde "Cliente"
+  → clasificar como en_scope, vista frecuencia_clientes, params.periodo = "2026-01"
+```
+
+**`app.py`:**
+6. En `on_message`, ANTES de llamar `run_agent`:
+   - Recuperar `history = cl.user_session.get("conversation_history", [])`
+   - Pasar `history` a `run_agent`
+7. DESPUÉS de obtener `state["response"]`:
+   - Añadir `{"role": "user", "content": question}` al historial
+   - Añadir `{"role": "assistant", "content": state["response"]}` al historial
+   - Guardar solo los últimos 6 elementos: `history[-6:]`
+   - Actualizar en sesión: `cl.user_session.set("conversation_history", history)`
+8. En `on_chat_start`: inicializar `cl.user_session.set("conversation_history", [])`
+
+**Formato del historial en el prompt** (para el template):
+```python
+# En build_history_str(history: list[dict]) → str:
+# Si history vacío → ""
+# Si hay entradas → formatear como:
+# "Usuario: {content}\nAsistente: {content}\n..."
+# Truncar cada mensaje a 200 caracteres para no explotar el contexto
+```
+
+**Casos de prueba para validar:**
+- P11 → P11.1: "¿quién me visita más y qué compra?" → NO debe ser ambiguous
+- P14 → P14.1: "¿quién me visitó más en enero?" → ambiguous → usuario: "de proveedores" → debe responder con datos de gastos_proveedores_mensual para enero
+- P14 → P14.2: misma pregunta → usuario: "de clientes" → frecuencia_clientes (nota: no hay filtro por mes en esta vista — responder con todos los clientes y nota aclaratoria)
+
+**IMPORTANTE:** La Tarea A debe completarse y validarse antes de empezar la Tarea B.
+
+---
+
+### ✅ Pregunta de clarificación para casos ambiguos
 
 **Problema:** El clasificador falla cuando la pregunta puede referirse a un cliente o a un
 proveedor (ej. "¿quién me visitó más en enero?"). Actualmente elige una vista y puede

@@ -33,9 +33,9 @@ def _bienvenida_ventas_hoy(con: Any) -> str:
         total, ntx = row if row else (0, 0)
         if total and total > 0:
             return (
-                f"¡Buenos días! Hoy sábado llevas **${total:.2f}** en ventas "
-                f"({int(ntx)} cobros esta mañana). Los sábados sueles cerrar bien — "
-                f"¿quieres ver cómo va el día o revisar qué se está moviendo más?"
+                f"¡Oe, veci! Esta mañana llevas **${total:.2f}** en ventas "
+                f"({int(ntx)} cobros). Los sábados son buenos — "
+                f"pregúntame **¿cuánto vendí esta semana?** para ver cómo va el ritmo."
             )
     except Exception:
         pass
@@ -59,9 +59,9 @@ def _bienvenida_top_cliente(con: Any) -> str:
             else:
                 ultimo = f"hace {dias} días que no pasa"
             return (
-                f"Tu cliente más fiel es **{nombre}** — ha venido **{visitas} veces** "
+                f"¡Mi pana! Tu cliente más fiel es **{nombre}** — ha caído **{visitas} veces** "
                 f"y lleva **${gastado:.2f}** gastados en tu tienda ({ultimo}). "
-                f"¿Quieres ver quiénes son tus otros clientes frecuentes?"
+                f"Pregúntame **¿quiénes son mis clientes más frecuentes?** para ver el ranking completo."
             )
     except Exception:
         pass
@@ -79,9 +79,9 @@ def _bienvenida_clientes_perdidos(con: Any) -> str:
         if row and row[0]:
             count, nombre, gastado = row
             return (
-                f"Oye, tienes **{count} clientes** que no han vuelto en más de un mes. "
-                f"El que más gastó fue **{nombre}** con **${gastado:.2f}**. "
-                f"¿Revisamos quiénes son para ver si podemos recuperarlos?"
+                f"Veci, estuve revisando y tienes **{count} clientes** que no han caído en más de un mes. "
+                f"El que más gastaba era **{nombre}** (dejaba **${gastado:.2f}** cada vez que venía). "
+                f"Pregúntame **¿qué clientes no han vuelto en el último mes?** para ver la lista completa."
             )
     except Exception:
         pass
@@ -100,19 +100,16 @@ def _bienvenida_semana(con: Any) -> str:
             esta_sem = rows[0][1]
             pasada = rows[1][1]
             if pasada and pasada > 0:
-                cambio = ((esta_sem - pasada) / pasada) * 100
-                emoji = "📈" if cambio >= 0 else "📉"
-                signo = "+" if cambio >= 0 else ""
                 return (
-                    f"{emoji} Esta semana llevas **${esta_sem:.2f}** — "
-                    f"**{signo}{cambio:.0f}%** vs la semana pasada (${pasada:.2f}). "
-                    f"¿Quieres ver el detalle de días o comparar con semanas anteriores?"
+                    f"¡Bien ahí, veci! Esta semana llevas **${esta_sem:.2f}** hasta ahorita "
+                    f"(la semana pasada cerraste en **${pasada:.2f}** en total). "
+                    f"Pregúntame **¿cuánto vendí cada día esta semana?** para ver el desglose por día."
                 )
         elif rows:
             esta_sem = rows[0][1]
             return (
-                f"Esta semana llevas **${esta_sem:.2f}** en ventas. "
-                f"¿Quieres comparar con semanas anteriores o ver qué días vendiste más?"
+                f"¡Oe! Esta semana llevas **${esta_sem:.2f}** en ventas. "
+                f"Pregúntame **¿cuánto vendí cada día esta semana?** para ver qué días moviste más."
             )
     except Exception:
         pass
@@ -129,9 +126,9 @@ def _bienvenida_top_categoria(con: Any) -> str:
         if row:
             cat, total = row
             return (
-                f"Tu categoría estrella es **{cat}** — la que más ingresos te genera "
-                f"con **${total:.2f}** en el historial. "
-                f"¿Quieres ver el ranking completo de categorías?"
+                f"¡Oe! Lo que más te mueve la plata es **{cat}** — "
+                f"**${total:.2f}** en el historial. "
+                f"Pregúntame **¿qué categoría vende más?** para ver el ranking completo."
             )
     except Exception:
         pass
@@ -140,7 +137,7 @@ def _bienvenida_top_categoria(con: Any) -> str:
 
 def _bienvenida_fallback() -> str:
     return (
-        "¡Hola! Soy tu Contador de Bolsillo. Pregúntame por ventas, clientes, "
+        "¡Oe, veci! Soy tu Contador de Bolsillo. Pregúntame por ventas, clientes, "
         "horarios fuertes o pagos a proveedores — todo en segundos."
     )
 
@@ -182,6 +179,7 @@ async def _close_session_resources() -> None:
 async def on_chat_start() -> None:
     con = get_connection()
     cl.user_session.set("con", con)
+    cl.user_session.set("conversation_history", [])
 
     session_id = _get_session_id()
     monitor_task = iniciar_monitor_ventas(
@@ -189,6 +187,7 @@ async def on_chat_start() -> None:
         con=con,
         intervalo_segundos=DEMO_ALERT_INTERVAL_SECONDS,
         fecha_referencia=DEMO_ALERT_REFERENCE_DATE,
+        comercio_id=DEMO_COMERCIO_ID,
     )
     cl.user_session.set("monitor_task", monitor_task)
 
@@ -210,8 +209,19 @@ async def main(message: cl.Message) -> None:
         await cl.Message(content="Cuéntame qué dato quieres revisar.").send()
         return
 
-    state = await run_agent(question, con)
+    history = cl.user_session.get("conversation_history", [])
+    state = await run_agent(question, con, conversation_history=history)
     response = state.get("response") or "No pude preparar una respuesta con esos datos."
+    history = [
+        *history,
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": response},
+    ][-6:]
+    cl.user_session.set("conversation_history", history)
+
+    if state.get("scope") == "ambiguous":
+        await cl.Message(content=response).send()
+        return
 
     elements = []
     fig = chart_for_result(

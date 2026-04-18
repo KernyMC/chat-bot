@@ -18,7 +18,11 @@ from agent.nodes import (
 _compiled_graph: Any | None = None
 
 
-def create_initial_state(question: str, con: Any) -> AgentState:
+def create_initial_state(
+    question: str,
+    con: Any,
+    conversation_history: list[dict[str, str]] | None = None,
+) -> AgentState:
     """Construye el estado inicial que app.py inyecta al grafo."""
     return {
         "question": question,
@@ -30,16 +34,18 @@ def create_initial_state(question: str, con: Any) -> AgentState:
         "sql": "",
         "sql_valid": False,
         "sql_result": [],
+        "sql_result_secondary": [],
         "response": "",
         "error": None,
         "retry_count": 0,
         "con": con,
+        "conversation_history": conversation_history or [],
     }
 
 
 def route_after_classify_and_map(state: AgentState) -> str:
     """Tras el nodo fusionado: si fuera_scope o sin vista → sintetizar directamente."""
-    if state.get("scope") == "fuera_scope" or not state.get("view_name"):
+    if state.get("scope") in {"fuera_scope", "ambiguous"} or not state.get("view_name"):
         return "synthesize"
     return "generate_sql"
 
@@ -95,8 +101,16 @@ def get_graph() -> Any:
     return _compiled_graph
 
 
-async def run_agent(question: str, con: Any) -> AgentState:
+async def run_agent(
+    question: str,
+    con: Any,
+    conversation_history: list[dict[str, str]] | None = None,
+) -> AgentState:
     """Helper async para app.py: arma estado, invoca grafo y devuelve estado final."""
     graph = get_graph()
-    initial_state = create_initial_state(question=question, con=con)
+    initial_state = create_initial_state(
+        question=question,
+        con=con,
+        conversation_history=conversation_history or [],
+    )
     return await graph.ainvoke(initial_state)

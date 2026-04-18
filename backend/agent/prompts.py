@@ -93,7 +93,23 @@ frecuencia_clientes(
     ultima_visita TIMESTAMP,
     dias_sin_volver BIGINT
 )
-Uso: clientes frecuentes, valor por cliente, ultima visita, clientes nuevos si se agrupa por primera visita.
+Uso: clientes frecuentes, valor por cliente, ultima visita. Agrega TODO el historial sin filtro de mes.
+Filtro base: solo tipo = 'Ingreso'.
+""".strip(),
+    "frecuencia_clientes_mensual": """
+frecuencia_clientes_mensual(
+    comercio_id VARCHAR,
+    mes DATE,
+    cliente_id VARCHAR,
+    nombre_cliente VARCHAR,
+    visitas BIGINT,
+    total_gastado DOUBLE,
+    ticket_promedio DOUBLE
+)
+Uso: cliente que mas compro o visito EN UN MES CONCRETO (enero, febrero, etc.), O en un año específico (2025, 2026).
+Para mes concreto: WHERE mes = DATE_TRUNC('month', DATE 'YYYY-MM-DD').
+Para año completo: WHERE YEAR(mes) = YYYY — luego GROUP BY nombre_cliente y SUM(visitas), SUM(total_gastado).
+Para cliente específico en periodo: WHERE nombre_cliente ILIKE '%nombre%' AND YEAR(mes) = YYYY — GROUP BY nombre_cliente, SUM totales.
 Filtro base: solo tipo = 'Ingreso'.
 """.strip(),
     "categorias_populares": """
@@ -191,7 +207,9 @@ VIEW_SELECTION_GUIDE: Final[str] = """
 Mapa de intenciones a vistas (incluye variantes en español ecuatoriano):
 - Ventas por dia, mejor dia, peor dia, cuanto vendí hoy/ayer, promedio diario: ventas_diarias.
 - Ventas por semana o mes, comparaciones de periodos, cuanto gané este mes/semana: ventas_periodo.
-- Clientes frecuentes, top clientes, quiénes compran más, clientes habituales, mis mejores clientes: frecuencia_clientes.
+- Clientes frecuentes, top clientes, quiénes compran más, clientes habituales, mis mejores clientes (sin mes específico): frecuencia_clientes.
+- Qué cliente vino más en [mes], quién me compró más en enero/febrero/etc., cliente más frecuente en [mes concreto]: frecuencia_clientes_mensual.
+- Cuánto gastó [cliente] en [año], cuántas veces vino [cliente] en 2025/2026, historial de [cliente] en un año: frecuencia_clientes_mensual (filtrar por YEAR(mes) y agrupar por nombre_cliente).
 - Clientes que no han vuelto, clientes perdidos, quién no regresa, clientes ausentes: clientes_perdidos.
 - Categorias mas vendidas, qué categoría vende más, qué rubro ingresa más, qué se vende más: categorias_populares.
 - Preguntas sobre productos específicos: no hay productos; usa categorias_populares y explícalo.
@@ -216,6 +234,11 @@ Vistas disponibles:
 REGLAS:
 - en_scope: ventas, cobros, clientes, categorías, horarios, proveedores, días pico, cualquier dato del dataset.
 - fuera_scope: clima, precios de mercado, inventario físico, predicciones externas, noticias.
+- ambiguous: preguntas donde "quién me visitó", "quién vino" o "quién pasó" pueden referirse tanto a un cliente que compra como a un proveedor que surte, SIN mencionar marca/proveedor conocido ni decir "cliente".
+- EXCEPCIÓN: si la pregunta incluye verbos de acción del comprador (compra, comprar, compró, gasta, gastó, paga, pagó, consume), NO es ambiguous aunque use "visita" o "vino" — clasificar como en_scope con vista frecuencia_clientes.
+- EJEMPLO: "¿quién me visita más y qué compra?" → en_scope, frecuencia_clientes.
+- EJEMPLO: "¿quién vino más y cuánto gastó?" → en_scope, frecuencia_clientes.
+- Si scope="ambiguous", devuelve view_name=null y no inventes vista. El sistema preguntará: "¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?"
 - "qué se vende más", "qué categoría vende más", "qué producto" → en_scope, vista categorias_populares.
 - "clientes que no han vuelto", "clientes perdidos", "quién no regresa" → en_scope, vista clientes_perdidos.
 - "clientes frecuentes", "mejores clientes", "quiénes compran más" → en_scope, vista frecuencia_clientes.
@@ -223,15 +246,23 @@ REGLAS:
 - "horas pico", "hora con menos clientes" sin mes → en_scope, vista patrones_temporales.
 - "proveedor que visitó/vino/trajo más" + mes específico → en_scope, vista gastos_proveedores_mensual.
 - "proveedor que visitó/vino/trajo más" sin mes → en_scope, vista gastos_proveedores.
+- "cliente que más compró/visitó/vino" + mes específico (enero, febrero, etc.) → en_scope, vista frecuencia_clientes_mensual.
+- "cuánto gastó [cliente]" + año (2025/2026) → en_scope, vista frecuencia_clientes_mensual (filtrar YEAR(mes) y GROUP BY nombre_cliente).
+- "cliente que más compró/visitó" sin mes ni año → en_scope, vista frecuencia_clientes.
 - "cuándo viene el de la Pilsener", "cada cuánto me visita la Coca-Cola", "qué día suele venir Bimbo" → en_scope, vista patrones_compra_proveedor, params.proveedor = nombre real según alias del DATASET_CONTEXT.
 - "el de la Pilsener", "el de la Coca-Cola", "el del pan", "el del aceite" → PROVEEDOR, nunca cliente.
 - "visitar", "venir", "traer", "pasar" referido a marca o distribuidor = transacción de egreso → vistas de proveedores. NUNCA patrones_temporales ni frecuencia_clientes.
+- EJEMPLO ambiguous: "¿Quién me visitó más en enero?" → scope="ambiguous", view_name=null.
+- EJEMPLO NO ambiguous proveedor: "el de la Pilsener vino esta semana?" → scope="en_scope", vista patrones_compra_proveedor.
+- EJEMPLO NO ambiguous cliente: "¿Cuánto me compró Juan?" → scope="en_scope", vista frecuencia_clientes.
 - Si no mencionan un comercio específico → comercio_id=null (sin filtro, agrega los 3 comercios).
 - Si la pregunta es en_scope, SIEMPRE incluye view_name válido.
+- Si la pregunta actual es una respuesta corta a una clarificación previa (ej. "Cliente", "Proveedor", "sí", "el de clientes"), reconstruye la intención combinando el historial con la respuesta actual.
+- EJEMPLO: historial muestra "¿quién me visitó más en enero?" → ambiguous → "¿Me puedes aclarar si hablamos de cliente o proveedor?" → usuario responde "Cliente" → clasificar como en_scope, vista frecuencia_clientes_mensual, params.periodo = "2026-01".
 
 Responde SOLO en JSON válido:
 {{
-  "scope": "en_scope",
+  "scope": "en_scope|fuera_scope|ambiguous",
   "view_name": "nombre_vista_o_null",
   "params": {{
     "comercio_id": "COM-001|COM-002|COM-003|null",
@@ -242,9 +273,12 @@ Responde SOLO en JSON válido:
     "orden": "asc|desc|null",
     "limite": 10
   }},
-  "requires_product_disclaimer": true,
+  "requires_product_disclaimer": true|false,
   "reason": "motivo corto"
 }}
+
+Historial reciente (últimos turnos — úsalo para entender preguntas de seguimiento):
+{conversation_history}
 
 Pregunta: {question}
 """.strip()
@@ -305,6 +339,21 @@ REGLAS:
 - Si comercio_id es null en los parametros, NO incluyas filtro WHERE comercio_id = ...; agrega los 3 comercios.
 - Si el parametro proveedor contiene un alias de marca (Pilsener, Coca-Cola, pan, aceite, etc.), usa ILIKE '%termino%' para buscarlo en la columna proveedor.
 - Devuelve SOLO SQL, sin markdown ni explicaciones.
+- NUNCA uses CURRENT_DATE, NOW() ni funciones de fecha del sistema operativo.
+  La fecha de referencia fija del dataset es DATE '2026-04-18'.
+  Traduce así:
+    "hoy"          → DATE '2026-04-18'
+    "esta semana"  → semana que contiene DATE '2026-04-18'
+                     → DATE_TRUNC('week', DATE '2026-04-18') = DATE '2026-04-14'
+    "este mes"     → DATE_TRUNC('month', DATE '2026-04-18') = DATE '2026-04-01'
+    "mes pasado"   → DATE_TRUNC('month', DATE '2026-03-01')
+- Si la pregunta menciona un mes sin año explícito, deduce el año del dataset:
+    mayo–diciembre → siempre 2025 (solo existen en ese año en el dataset)
+    enero–abril    → usa 2026 si el contexto sugiere reciente, 2025 si no
+  Ejemplo: "diciembre" → DATE '2025-12-01'; "enero pasado" → DATE '2026-01-01'
+- Si la consulta devuelve múltiples filas con fechas (ej. ventas por día de la semana),
+  incluye DAYOFWEEK(dia) AS dia_semana en el SELECT para que el sintetizador sepa el día
+  correcto sin tener que calcularlo.
 
 Vista objetivo:
 {view_name}
@@ -341,10 +390,14 @@ SYNTHESIZER_PROMPT_TEMPLATE: Final[str] = """
 Convierte el resultado SQL en una respuesta corta para un comerciante ecuatoriano.
 
 Reglas:
+- Si scope es ambiguous, responde exactamente: "¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?"
 - Usa solo los datos en resultado_sql.
+- Si resultado_secundario tiene datos Y requires_product_disclaimer es true, úsalo como respuesta aproximada a la parte de categorías. Ejemplo: "Tu cliente más frecuente es Diego (61 visitas, $1128.24). No tengo el detalle exacto de lo que compra, pero en tu tienda lo que más mueve plata es Bebidas con $845.20. Probablemente Diego también elige eso."
+- Cuando uses resultado_secundario, la accion concreta debe ser de negocio, NO "pregúntale qué compra". Usa este patrón: "La próxima vez que venga [nombre del cliente], dale una yapa en [categoria_top] — eso fideliza sin gastar mucho." O si tiene muchos días sin volver: "Lleva [dias] días sin pasar — mándale a decir que tienes [categoria_top] fresquito."
 - Si resultado_sql esta vacio, di que no hay datos en ese periodo.
 - No hagas calculos nuevos. Si falta un porcentaje o total, no lo inventes.
-- Si requires_product_disclaimer es true, explica que Deuna registra el cobro total, no productos individuales, y ofrece categoria como aproximacion.
+- TRANSPARENCIA DE PERIODO: Si el resultado contiene una columna "mes" o similar con un valor de fecha, menciona siempre el mes Y el año en tu respuesta (ej. "En enero de 2026..." o "En marzo de 2025..."). No asumas que el usuario sabe qué año consultó el sistema.
+- Si requires_product_disclaimer es true Y la pregunta original menciona explícitamente "producto", "productos", "item" o "qué compra/compró/vende", explica que Deuna registra el cobro total no productos individuales, y ofrece categoria como aproximacion. Si la pregunta es solo sobre montos o frecuencia de un cliente, NO añadas este disclaimer.
 - Maximo 3-4 oraciones.
 - Termina con una accion concreta.
 - TRANSPARENCIA DE ALIAS: Si la pregunta usó un apodo o marca (ej. "el de la Pilsener", "la Coca-Cola",
@@ -353,15 +406,25 @@ Reglas:
   Cervecería Nacional (Pilsener)..." o "Mirando los registros de Arca Continental (Coca-Cola)...".
 - Si el resultado tiene MULTIPLES filas empatadas en el criterio principal (ej. varios días con el
   mismo número de pedidos), menciona TODOS los empatados, no solo los primeros dos.
+- NUNCA calcules ni deduzcas el nombre del día de la semana a partir de una fecha. Si el resultado
+  SQL incluye un campo numérico "dia_semana" usa este mapa exacto: 0=domingo, 1=lunes, 2=martes,
+  3=miércoles, 4=jueves, 5=viernes, 6=sábado. Si el resultado NO incluye "dia_semana", menciona
+  solo la fecha (ej: "el 13 de abril") sin agregar el nombre del día.
 
 Pregunta original:
 {question}
+
+Scope:
+{scope}
 
 SQL ejecutado:
 {sql}
 
 Resultado SQL:
 {result}
+
+Resultado secundario:
+{resultado_secundario}
 
 requires_product_disclaimer:
 {requires_product_disclaimer}
@@ -385,3 +448,22 @@ def get_view_schema(view_name: str) -> str:
 def allowed_views_csv() -> str:
     """Lista de vistas permitidas para validadores y mensajes del agente."""
     return ", ".join(VIEW_SCHEMAS)
+
+
+def build_history_str(history: list[dict[str, str]]) -> str:
+    """Formatea los últimos turnos para el prompt del clasificador."""
+    if not history:
+        return ""
+
+    lines = []
+    for item in history[-6:]:
+        role = item.get("role", "")
+        content = item.get("content", "")[:200]
+        if role == "user":
+            label = "Usuario"
+        elif role == "assistant":
+            label = "Asistente"
+        else:
+            label = str(role or "Mensaje")
+        lines.append(f"{label}: {content}")
+    return "\n".join(lines)

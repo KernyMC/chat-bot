@@ -17,6 +17,7 @@ from agent.prompts import (
     VIEW_SCHEMAS,
     VIEW_SELECTION_GUIDE,
     allowed_views_csv,
+    build_history_str,
     build_view_context,
     get_view_schema,
 )
@@ -27,8 +28,21 @@ from agent.config import DEMO_COMERCIO_ID  # fuente única — cambia solo en ag
 MAX_RETRIES = 3
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
 OLLAMA_MODEL = "qwen2.5:32b"
+SECONDARY_SQL_CATEGORIAS = """
+SELECT categoria, num_transacciones, ingreso_total, ticket_promedio
+FROM categorias_populares
+WHERE comercio_id = ?
+ORDER BY ingreso_total DESC
+LIMIT 3
+"""
+SECONDARY_SQL_CATEGORIAS_SIN_FILTRO = """
+SELECT categoria, num_transacciones, ingreso_total, ticket_promedio
+FROM categorias_populares
+ORDER BY ingreso_total DESC
+LIMIT 3
+"""
 
-Scope = Literal["en_scope", "fuera_scope"]
+Scope = Literal["en_scope", "fuera_scope", "ambiguous"]
 
 
 class AgentState(TypedDict, total=False):
@@ -41,10 +55,12 @@ class AgentState(TypedDict, total=False):
     sql: str
     sql_valid: bool
     sql_result: list[dict[str, Any]]
+    sql_result_secondary: list[dict[str, Any]]
     response: str
     error: str | None
     retry_count: int
     con: Any
+    conversation_history: list[dict[str, str]]
 
 
 def create_llm(temperature: float = 0, max_tokens: int = 512) -> Any:
@@ -124,6 +140,7 @@ async def classify_and_map_node(state: AgentState) -> AgentState:
         dataset_context=DATASET_CONTEXT,
         view_selection_guide=VIEW_SELECTION_GUIDE,
         view_context=build_view_context(),
+        conversation_history=build_history_str(state.get("conversation_history", [])),
         question=question,
     )
     raw = await _call_llm(prompt, temperature=0, max_tokens=400)
@@ -138,8 +155,22 @@ async def classify_and_map_node(state: AgentState) -> AgentState:
         }
 
     scope = parsed.get("scope", "fuera_scope")
-    if scope not in {"en_scope", "fuera_scope"}:
+    if scope not in {"en_scope", "fuera_scope", "ambiguous"}:
         scope = "fuera_scope"
+
+    if scope == "ambiguous":
+        return {
+            **state,
+            "scope": "ambiguous",
+            "view_name": None,
+            "params": {},
+            "comercio_id": None,
+            "requires_product_disclaimer": False,
+            "sql": "",
+            "sql_valid": False,
+            "sql_result": [],
+            "error": None,
+        }
 
     if scope == "fuera_scope":
         return {
@@ -183,7 +214,7 @@ semantic_node = classify_and_map_node
 
 async def sql_generator_node(state: AgentState) -> AgentState:
     """Nodo 3: genera SQL DuckDB contra una unica vista semantica."""
-    if state.get("scope") == "fuera_scope":
+    if state.get("scope") in {"fuera_scope", "ambiguous"}:
         return state
 
     view_name = state.get("view_name")
@@ -245,7 +276,13 @@ async def executor_node(state: AgentState) -> AgentState:
         columns = [description[0] for description in cursor.description]
         rows = cursor.fetchall()
         result = [dict(zip(columns, row, strict=False)) for row in rows]
-        return {**state, "sql_result": result, "error": None}
+        secondary_result = _secondary_categoria_result(state, result)
+        return {
+            **state,
+            "sql_result": result,
+            "sql_result_secondary": secondary_result,
+            "error": None,
+        }
     except Exception as exc:
         return {
             **state,
@@ -255,8 +292,38 @@ async def executor_node(state: AgentState) -> AgentState:
         }
 
 
+def _secondary_categoria_result(
+    state: AgentState,
+    primary_result: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not primary_result or not state.get("requires_product_disclaimer"):
+        return []
+
+    con = state.get("con")
+    if con is None:
+        return []
+
+    try:
+        comercio_id = state.get("comercio_id")
+        if comercio_id is None:
+            cursor = con.execute(SECONDARY_SQL_CATEGORIAS_SIN_FILTRO)
+        else:
+            cursor = con.execute(SECONDARY_SQL_CATEGORIAS, [comercio_id])
+        columns = [description[0] for description in cursor.description]
+        rows = cursor.fetchall()
+        return [dict(zip(columns, row, strict=False)) for row in rows]
+    except Exception:
+        return []
+
+
 async def synthesizer_node(state: AgentState) -> AgentState:
     """Nodo 6: sintetiza la respuesta final en español neutro."""
+    if state.get("scope") == "ambiguous":
+        return {
+            **state,
+            "response": "¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?",
+        }
+
     if state.get("scope") == "fuera_scope":
         return {
             **state,
@@ -272,8 +339,14 @@ async def synthesizer_node(state: AgentState) -> AgentState:
     prompt = SYNTHESIZER_PROMPT_TEMPLATE.format(
         system_prompt=SYSTEM_PROMPT,
         question=state["question"],
+        scope=state.get("scope", "en_scope"),
         sql=state.get("sql", ""),
         result=json.dumps(state.get("sql_result", []), ensure_ascii=False, default=str),
+        resultado_secundario=json.dumps(
+            state.get("sql_result_secondary", []),
+            ensure_ascii=False,
+            default=str,
+        ),
         requires_product_disclaimer=state.get("requires_product_disclaimer", False),
     )
     response = await _call_llm(prompt, temperature=0.3, max_tokens=300)

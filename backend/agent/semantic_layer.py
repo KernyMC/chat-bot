@@ -16,6 +16,7 @@ SEMANTIC_VIEWS: Final[tuple[str, ...]] = (
     "ventas_diarias",
     "ventas_periodo",
     "frecuencia_clientes",
+    "frecuencia_clientes_mensual",
     "categorias_populares",
     "clientes_perdidos",
     "patrones_temporales",
@@ -119,6 +120,23 @@ def _create_semantic_views(con: duckdb.DuckDBPyConnection) -> None:
         WHERE tipo = 'Ingreso'
         GROUP BY comercio_id, categoria
         ORDER BY ingreso_total DESC;
+        """
+    )
+
+    con.execute(
+        """
+        CREATE VIEW frecuencia_clientes_mensual AS
+        SELECT comercio_id,
+               DATE_TRUNC('month', fecha) AS mes,
+               cliente_id,
+               nombre_contrapartida AS nombre_cliente,
+               COUNT(*) AS visitas,
+               ROUND(SUM(monto), 2) AS total_gastado,
+               ROUND(AVG(monto), 2) AS ticket_promedio
+        FROM transacciones
+        WHERE tipo = 'Ingreso'
+        GROUP BY comercio_id, mes, cliente_id, nombre_contrapartida
+        ORDER BY mes DESC, visitas DESC;
         """
     )
 

@@ -71,7 +71,7 @@ Estas reglas DEBEN estar en el system prompt y en la lógica del Nodo 1:
 
 ---
 
-## Vistas semánticas requeridas (9 vistas)
+## Vistas semánticas requeridas (10 vistas)
 
 ```sql
 -- ventas_diarias              → total + ticket promedio por día (solo Ingresos)
@@ -124,7 +124,35 @@ No existe vista de "productos" — el dataset no tiene ítems individuales (esce
 
 ## PENDIENTES — mejoras identificadas, no implementadas aún
 
-### ⏳ Pregunta de clarificación para casos ambiguos
+### ⏳ Memoria de conversación — Opción B: historial en AgentState
+
+**Problema:** El agente procesa cada mensaje de forma independiente. Si el mensaje de bienvenida dice "Esta semana llevas $319 — pregúntame para ver el detalle" y el usuario responde "dame el detalle", el clasificador ve solo esas palabras y falla.
+
+**Solución diseñada:**
+- Añadir `conversation_history: list[dict]` al `AgentState`
+- En `app.py` `on_message`: guardar historial en `cl.user_session` (últimos 3 mensajes)
+- Inyectar el último mensaje del agente al prompt del clasificador como contexto
+- Costo estimado: +~200 tokens por llamada → +0.3s de latencia
+
+**Archivos a modificar:** `agent/nodes.py` (AgentState), `agent/prompts.py` (CLASSIFIER template), `app.py` (guardar/leer historial)
+
+---
+
+### ⏳ Memoria persistente — Opción C: Supermemory API
+
+**Concepto:** Usar Supermemory (supermemory.ai) para persistir contexto entre sesiones — el tendero retoma la conversación donde la dejó, incluso al día siguiente.
+
+**Cautelas antes de implementar:**
+- Latencia: llamada HTTP extra en cada turno (~200-500ms adicionales)
+- Privacidad: datos de transacciones del tendero salen del entorno local hacia API externa
+- Scope del hackathon: el reto no pide persistencia entre sesiones, y los datos son sintéticos
+- Valor demo: el jurado no va a cerrar y reabrir el chat para ver persistencia
+
+**Veredicto provisional:** No implementar para el pitch. Mencionar como roadmap de producción ("en producción, Deuna ya tiene el historial del comerciante — podríamos conectarlo aquí").
+
+---
+
+### ✅ Pregunta de clarificación para casos ambiguos
 
 **Problema detectado en pruebas:** Cuando el tendero usa una frase que puede referirse tanto
 a un cliente como a un proveedor (ej. "el de la Pilsener", "el que me visita los martes"),
@@ -181,7 +209,7 @@ mi-contador/
 │   ├── config.py          ← DEMO_COMERCIO_ID (fuente única — cambiar aquí para la demo)
 │   ├── graph.py           ← LangGraph con los 6 nodos (Nodos 1+2 fusionados)
 │   ├── nodes.py           ← lógica de cada nodo
-│   ├── semantic_layer.py  ← 9 vistas DuckDB, ref fecha 2026-04-18
+│   ├── semantic_layer.py  ← 10 vistas DuckDB, ref fecha 2026-04-18
 │   └── prompts.py         ← system prompt + templates
 ├── data/
 │   └── transacciones.csv  ← 2025-01-01→2026-04-18, 8020 tx, sin ítems
