@@ -1,5 +1,7 @@
-import { createElement, useState } from 'react'
+import { createElement, useState, useEffect } from 'react'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
+import NotificationDropdown, { useNotifications, useSwipeDown } from './NotificationDropdown'
+import AppNotifications, { usePaymentNotifications, useMiPanaNotifications } from './AppNotifications'
 import qrCodeIcon from '../assets/qrcode.svg'
 import headphonesIcon from '../assets/audifonos.svg'
 import bellIcon from '../assets/campana.svg'
@@ -480,6 +482,63 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<'cobrar' | 'gestionar'>('gestionar')
   const [balanceHidden, setBalanceHidden] = useState(true)
   const [navTab, setNavTab] = useState<NavTab>('inicio')
+  const [showNativeNotifications, setShowNativeNotifications] = useState(false)
+  const [showAppNotifications, setShowAppNotifications] = useState(false)
+  const { notifications, addNotification } = useNotifications()
+  const { notifications: paymentNotifications, addPaymentNotification, count: paymentCount } = usePaymentNotifications()
+  const { notifications: miPanaAppNotifications, addMiPanaNotification, count: miPanaCount } = useMiPanaNotifications()
+
+  // Hook para activar notificaciones nativas con long press + swipe down
+  const { containerRef, handlers: swipeHandlers, isLongPressed, swipeProgress } = useSwipeDown(() => {
+    setShowNativeNotifications(true)
+  })
+
+  // Agregar notificaciones de ejemplo al montar
+  useEffect(() => {
+    // Notificaciones nativas del teléfono (Mi Pana) - aparecen con swipe down
+    addNotification(
+      'Mi Pana',
+      'Hola! Tus ventas de hoy van muy bien. Ya llevas $245.50 en el dia.',
+      'growth'
+    )
+    setTimeout(() => {
+      addNotification(
+        'Mi Pana',
+        'Recuerda revisar tu reporte semanal. Tienes un crecimiento del 15% respecto a la semana pasada.',
+        'tip'
+      )
+    }, 500)
+
+    // Notificaciones de Mi Pana para la app (aparecen en la campana)
+    addMiPanaNotification(
+      'Crecimiento semanal',
+      'Tus ventas crecieron un 15% esta semana. Sigue asi!',
+      'growth'
+    )
+    setTimeout(() => {
+      addMiPanaNotification(
+        'Consejo del dia',
+        'Activa los recordatorios de pago para tus clientes frecuentes.',
+        'tip'
+      )
+    }, 100)
+    setTimeout(() => {
+      addMiPanaNotification(
+        'Alerta de inventario',
+        'Tu producto mas vendido esta por agotarse.',
+        'alert'
+      )
+    }, 200)
+
+    // Notificaciones de pagos de la app
+    addPaymentNotification(7.15, 'Jimmy Wladimir Ango Llulluna', '2549')
+    setTimeout(() => addPaymentNotification(10.00, 'Adriana Elizabeth Alvarez Carrasco', '3337'), 100)
+    setTimeout(() => addPaymentNotification(4.50, 'Karen Anahi Vasco Usina', '2365'), 200)
+    setTimeout(() => addPaymentNotification(14.50, 'Monica Gabriela Vasconez Acuna', '9300'), 300)
+    setTimeout(() => addPaymentNotification(2.75, 'Tania Magaly Suarez Barreiro', '2000'), 400)
+    setTimeout(() => addPaymentNotification(3.15, 'Fernando Jose Zhapa Zhapa', '2008'), 500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleNavChange = (tab: NavTab) => {
     setNavTab(tab)
@@ -490,6 +549,11 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     } else if (tab === 'menu' && onNavigate) {
       onNavigate('menu')
     }
+  }
+
+  const handleNativeNotificationClick = () => {
+    setShowNativeNotifications(false)
+    onNavigate?.('mi-pana')
   }
 
   return (
@@ -513,6 +577,8 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       `}</style>
       {/* Device shell */}
       <div
+        ref={containerRef}
+        {...swipeHandlers}
         style={{
           width: 390,
           height: '100svh',
@@ -524,8 +590,24 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           flexDirection: 'column',
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           position: 'relative',
+          userSelect: 'none',
         }}
       >
+        {/* Swipe indicator */}
+        {isLongPressed && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: `linear-gradient(90deg, #5B21B6 ${swipeProgress * 100}%, transparent ${swipeProgress * 100}%)`,
+              zIndex: 150,
+              transition: 'all 0.1s',
+            }}
+          />
+        )}
         {/* Scrollable content */}
         <div
           className="home-scroll"
@@ -615,8 +697,9 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                   }}
                 />
               </button>
-              {/* Bell */}
+              {/* Bell - Opens App Notifications */}
               <button
+                onClick={() => setShowAppNotifications(true)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -627,6 +710,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  position: 'relative',
                 }}
               >
                 <img
@@ -639,6 +723,28 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                     filter: 'brightness(0) saturate(100%) invert(10%) sepia(13%) saturate(938%) hue-rotate(183deg) brightness(95%) contrast(93%)',
                   }}
                 />
+                {(paymentCount + miPanaCount) > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -2,
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      background: '#EF4444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      border: '2px solid #ffffff',
+                    }}
+                  >
+                    {(paymentCount + miPanaCount) > 9 ? '9+' : (paymentCount + miPanaCount)}
+                  </div>
+                )}
               </button>
               {/* Headphones */}
               <button
@@ -729,6 +835,27 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
 
         {/* Bottom Navigation */}
         <BottomNavBar activeTab={navTab} onTabChange={handleNavChange} />
+
+        {/* Native Phone Notification Dropdown (activated by long press + swipe down) */}
+        {showNativeNotifications && (
+          <NotificationDropdown
+            notifications={notifications}
+            onClose={() => setShowNativeNotifications(false)}
+            onNotificationClick={handleNativeNotificationClick}
+          />
+        )}
+
+        {/* App Notifications Screen (activated by bell icon click) */}
+        <AppNotifications
+          isOpen={showAppNotifications}
+          onClose={() => setShowAppNotifications(false)}
+          paymentNotifications={paymentNotifications}
+          miPanaNotifications={miPanaAppNotifications}
+          onMiPanaClick={() => {
+            setShowAppNotifications(false)
+            onNavigate?.('mi-pana')
+          }}
+        />
       </div>
     </div>
   )
