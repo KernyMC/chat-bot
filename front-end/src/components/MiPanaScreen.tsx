@@ -39,6 +39,13 @@ function makeId() {
   return Math.random().toString(36).slice(2)
 }
 
+function formatTooltipCurrency(value: unknown, label: string): [string, string] {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN
+  const safeValue = Number.isFinite(parsed) ? parsed : 0
+  return [`$${safeValue.toLocaleString()}`, label]
+}
+
 function FormattedText({ text, color = '#111827', size = 15 }: { text: string; color?: string; size?: number }) {
   const lines = text.split('\n').filter((l) => l !== undefined)
   return (
@@ -374,7 +381,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   <XAxis dataKey="name" tick={{ fontSize: 8 }} />
                   <YAxis tick={{ fontSize: 8 }} />
                   <Tooltip
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, 'Ventas']}
+                    formatter={(value) => formatTooltipCurrency(value, 'Ventas')}
                     contentStyle={{ fontSize: 11 }}
                   />
                   <Bar dataKey="value" fill="#5B21B6" radius={[3, 3, 0, 0]} />
@@ -388,7 +395,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v: number) => [`$${v.toLocaleString()}`, '']}
+                  formatter={(value) => formatTooltipCurrency(value, '')}
                   contentStyle={{ fontSize: 11 }}
                 />
                 <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
