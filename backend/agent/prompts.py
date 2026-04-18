@@ -338,6 +338,11 @@ REGLAS:
 - Para porcentajes de cambio, calcula el porcentaje en SQL y devuelve la columna variacion_pct.
 - Si comercio_id es null en los parametros, NO incluyas filtro WHERE comercio_id = ...; agrega los 3 comercios.
 - Si el parametro proveedor contiene un alias de marca (Pilsener, Coca-Cola, pan, aceite, etc.), usa ILIKE '%termino%' para buscarlo en la columna proveedor.
+- NOMBRES DE CLIENTES O PROVEEDORES: DuckDB ILIKE NO normaliza tildes ni acentos.
+  Cuando filtres por nombre_cliente o proveedor, elimina los acentos y busca por palabras sueltas.
+  Ejemplo: usuario dice "Rosa García Gómez" → usa: nombre_cliente ILIKE '%Rosa%' AND nombre_cliente ILIKE '%Garcia%' AND nombre_cliente ILIKE '%Gomez%'
+  Ejemplo: usuario dice "Nestlé" → usa: proveedor ILIKE '%Nestle%'
+  Regla: cada palabra del nombre va en su propio ILIKE sin tilde. No uses el nombre completo con acento en una sola condicion ILIKE.
 - Devuelve SOLO SQL, sin markdown ni explicaciones.
 - NUNCA uses CURRENT_DATE, NOW() ni funciones de fecha del sistema operativo.
   La fecha de referencia fija del dataset es DATE '2026-04-18'.

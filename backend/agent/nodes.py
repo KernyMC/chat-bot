@@ -187,6 +187,26 @@ async def classify_and_map_node(state: AgentState) -> AgentState:
     if comercio_id is None:
         comercio_id = DEMO_COMERCIO_ID
 
+    _temporal_hint = " ".join([
+        str(params.get("periodo") or ""),
+        question,
+    ]).lower()
+    _temporal_re = re.compile(
+        r"\b(20\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|"
+        r"septiembre|octubre|noviembre|diciembre)\b",
+        re.IGNORECASE,
+    )
+
+    # Override determinístico: frecuencia_clientes no tiene columna de fecha filtrable.
+    # Si el modelo la eligió pero hay año/mes en la pregunta, redirigir a _mensual.
+    if view_name == "frecuencia_clientes" and _temporal_re.search(_temporal_hint):
+        view_name = "frecuencia_clientes_mensual"
+
+    # Override determinístico: gastos_proveedores no tiene columna mes.
+    # Si el modelo la eligió pero hay año/mes en la pregunta, redirigir a _mensual.
+    if view_name == "gastos_proveedores" and _temporal_re.search(_temporal_hint):
+        view_name = "gastos_proveedores_mensual"
+
     if view_name not in VIEW_SCHEMAS:
         return {
             **state,
