@@ -16,10 +16,13 @@ import BottomNavBar, { type NavTab } from './BottomNavBar'
 import mipanaIcon from '../assets/mipana.svg'
 import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
-  callDeepSeek,
-  callDeepSeekWithToolResults,
+  callAI,
+  callAIWithToolResults,
+  AI_PROVIDERS,
+  type AIProvider,
   type ToolCallResult,
-} from '../services/deepseekService'
+} from '../services/aiService'
+import { sendToBackend, getReportFromBackend } from '../services/backendService'
 import { generateSalesPDF } from '../utils/pdfGenerator'
 
 interface MiPanaScreenProps {
@@ -120,6 +123,11 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
   ])
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [provider, setProvider] = useState<AIProvider | 'backend'>(() => {
+    const env = import.meta.env.VITE_CHAT_PROVIDER as string
+    if (env === 'backend' || env === 'openai' || env === 'groq') return env
+    return 'deepseek'
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -129,6 +137,19 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
   const handleNavChange = (tab: NavTab) => {
     setNavTab(tab)
     if (tab !== 'mi-pana') onBack()
+  }
+
+  function _detectReportType(message: string): 'weekly' | 'monthly' | 'annual' | null {
+    const lower = message.toLowerCase()
+    const isReport =
+      lower.includes('pdf') ||
+      lower.includes('reporte') ||
+      lower.includes('descargar') ||
+      lower.includes('exportar')
+    if (!isReport) return null
+    if (lower.includes('semana') || lower.includes('semanal')) return 'weekly'
+    if (lower.includes('anual') || lower.includes('año') || lower.includes('2025')) return 'annual'
+    return 'monthly'
   }
 
   const sendMessage = async (text: string) => {
@@ -154,11 +175,72 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
     setInput('')
     setIsLoading(true)
 
+    if (provider === 'backend') {
+      try {
+        const reportType = _detectReportType(text)
+        const backendRes = reportType
+          ? await getReportFromBackend(reportType)
+          : await sendToBackend(text)
+
+        const newMsgs: ChatMessage[] = []
+
+        if (backendRes.pdfData) {
+          newMsgs.push({
+            id: makeId(),
+            role: 'assistant',
+            type: 'pdf_ready',
+            timestamp: Date.now(),
+            content: backendRes.text,
+            pdfTitle: backendRes.pdfData.title,
+            period: backendRes.pdfData.period,
+            tableData: backendRes.pdfData.tableData,
+            totalAmount: backendRes.pdfData.totalAmount,
+          })
+        } else {
+          if (backendRes.chart) {
+            newMsgs.push({
+              id: makeId(),
+              role: 'assistant',
+              type: 'chart',
+              timestamp: Date.now(),
+              content: '',
+              chartType: backendRes.chart.chartType,
+              title: backendRes.chart.title,
+              data: backendRes.chart.data,
+            })
+          }
+          newMsgs.push({
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: backendRes.text || 'No pude preparar una respuesta.',
+          })
+        }
+
+        setUiMessages((prev) => [...prev.filter((m) => m.type !== 'loading'), ...newMsgs])
+      } catch (err) {
+        setUiMessages((prev) => [
+          ...prev.filter((m) => m.type !== 'loading'),
+          {
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: `Hubo un error: ${err instanceof Error ? err.message : 'Error desconocido'}. Intenta de nuevo.`,
+          },
+        ])
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
     const newHistory: OpenAIMessage[] = [...apiHistory, { role: 'user', content: text }]
     setApiHistory(newHistory)
 
     try {
-      const response = await callDeepSeek(newHistory)
+      const response = await callAI(provider as AIProvider, newHistory)
 
       if (response.toolCalls && response.toolCalls.length > 0) {
         const toolResults: ToolCallResult[] = []
@@ -209,7 +291,8 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
           toolResults.push({ tool_call_id: tc.id, name: tc.function.name, result: toolResult })
         }
 
-        const followUp = await callDeepSeekWithToolResults(
+        const followUp = await callAIWithToolResults(
+          provider as AIProvider,
           newHistory,
           response.rawAssistantMessage,
           toolResults
@@ -652,28 +735,60 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               <span style={{ fontSize: 17, fontWeight: 600, color: '#111827' }}>Mi Pana</span>
             </div>
 
-            {isLoading && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 20,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <div
+            <div
+              style={{
+                position: 'absolute',
+                right: 20,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {isLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: '#0F766E',
+                      animation: 'mipana-bounce 1.2s infinite',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: '#0F766E' }}>escribiendo...</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() =>
+                    setProvider((p) => {
+                      const cycle: (AIProvider | 'backend')[] = ['deepseek', 'openai', 'groq', 'backend']
+                      return cycle[(cycle.indexOf(p) + 1) % cycle.length]
+                    })
+                  }
+                  title={
+                    provider === 'backend'
+                      ? 'Backend local — clic para cambiar'
+                      : `${AI_PROVIDERS[provider as AIProvider].label} — clic para cambiar`
+                  }
                   style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: '#0F766E',
-                    animation: 'mipana-bounce 1.2s infinite',
+                    background:
+                      provider === 'backend'
+                        ? '#0F766E'
+                        : AI_PROVIDERS[provider as AIProvider].color,
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    cursor: 'pointer',
                   }}
-                />
-                <span style={{ fontSize: 11, color: '#0F766E' }}>escribiendo...</span>
-              </div>
-            )}
+                >
+                  {provider === 'backend'
+                    ? '🏠 Local'
+                    : `${AI_PROVIDERS[provider as AIProvider].emoji} ${AI_PROVIDERS[provider as AIProvider].label}`}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Messages */}

@@ -259,3 +259,18 @@ def clientes_chart(result: list[dict[str, Any]], title: str) -> Any | None:
 def should_suggest_chart(view_name: str | None, result: list[dict[str, Any]] | None) -> bool:
     """Indica si vale la pena adjuntar Plotly al mensaje de Chainlit."""
     return chart_for_result(view_name, result) is not None
+
+
+def chart_as_dict(
+    view_name: str | None,
+    result: list[dict[str, Any]] | None,
+    question: str = "",
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Igual que chart_for_result pero devuelve el JSON serializable de Plotly, o None."""
+    import json
+
+    fig = chart_for_result(view_name, result, question=question, params=params)
+    if fig is None:
+        return None
+    return json.loads(fig.to_json())
