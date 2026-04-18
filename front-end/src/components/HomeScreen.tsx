@@ -127,11 +127,9 @@ function PaymentMethodToggle({
     <div
       style={{
         display: 'inline-flex',
-        border: '1px solid #ECEFF4',
-        background: '#F3F4F8',
-        borderRadius: 50,
+        background: '#F3F4F6',
+        borderRadius: 20,
         padding: 3,
-        overflow: 'hidden',
       }}
     >
       {methods.map((method) => (
@@ -139,17 +137,17 @@ function PaymentMethodToggle({
           key={method.key}
           onClick={() => onChange(method.key)}
           style={{
-            paddingTop: 8,
-            paddingBottom: 8,
-            paddingLeft: 26,
-            paddingRight: 26,
+            paddingTop: 6,
+            paddingBottom: 6,
+            paddingLeft: 18,
+            paddingRight: 18,
             border: 'none',
-            borderRadius: 50,
+            borderRadius: 16,
             cursor: 'pointer',
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 600,
             background: selected === method.key ? '#5B21B6' : 'transparent',
-            color: selected === method.key ? '#ffffff' : '#5B21B6',
+            color: selected === method.key ? '#ffffff' : '#374151',
             transition: 'all 0.2s',
           }}
         >
@@ -180,43 +178,36 @@ function NumericKeypad({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        padding: '18px 42px 8px',
+        gap: 0,
+        padding: '8px 24px 0',
       }}
     >
       {keys.map((row, rowIndex) => (
-        <div key={rowIndex} style={{ display: 'flex', justifyContent: 'space-between', gap: 30 }}>
+        <div key={rowIndex} style={{ display: 'flex', justifyContent: 'space-around' }}>
           {row.map((key) => (
             <button
               key={key}
               onClick={() => (key === 'delete' ? onDelete() : onKeyPress(key))}
               style={{
-                width: 76,
-                height: 60,
-                borderRadius: 16,
+                width: 80,
+                height: 50,
+                borderRadius: 12,
                 border: 'none',
-                background: 'transparent',
+                background: '#ffffff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 40,
+                fontSize: 28,
                 fontWeight: 400,
-                color: '#5B21B6',
-                transition: 'background 0.1s',
-              }}
-              onTouchStart={(e) => {
-                e.currentTarget.style.background = '#F3F4F8'
-              }}
-              onTouchEnd={(e) => {
-                e.currentTarget.style.background = 'transparent'
+                color: '#1F2937',
               }}
             >
               {key === 'delete' ? (
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="#5B21B6">
-                  <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
-                  <line x1="17" y1="9" x2="12.5" y2="13.5" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-                  <line x1="12.5" y1="9" x2="17" y2="13.5" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2">
+                  <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" fill="none" />
+                  <line x1="18" y1="9" x2="12" y2="15" />
+                  <line x1="12" y1="9" x2="18" y2="15" />
                 </svg>
               ) : (
                 key
@@ -270,19 +261,18 @@ function CobrarContent() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          paddingTop: 20,
-          paddingBottom: 18,
+          paddingTop: 24,
+          paddingBottom: 20,
         }}
       >
-        <span style={{ fontSize: 16, color: '#9CA3AF', fontWeight: 500, marginBottom: 6 }}>Monto</span>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-          <span style={{ fontSize: 62, fontWeight: 700, color: '#171717', lineHeight: 1 }}>$</span>
-          <span style={{ fontSize: 62, fontWeight: 700, color: '#171717', lineHeight: 1 }}>{amount}</span>
+        <span style={{ fontSize: 15, color: '#9CA3AF', fontWeight: 500, marginBottom: 8 }}>Monto</span>
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span style={{ fontSize: 48, fontWeight: 600, color: '#111827', lineHeight: 1 }}>$ {amount}</span>
         </div>
       </div>
 
       {/* Payment method toggle */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
         <PaymentMethodToggle selected={paymentMethod} onChange={setPaymentMethod} />
       </div>
 
@@ -292,7 +282,7 @@ function CobrarContent() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '14px 22px',
+          padding: '16px 20px',
           background: 'none',
           border: 'none',
           borderTop: '1px solid #E5E7EB',
@@ -301,8 +291,8 @@ function CobrarContent() {
           width: '100%',
         }}
       >
-        <span style={{ fontSize: 15, color: '#6B7280', fontWeight: 500 }}>Agregar motivo (opcional)</span>
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.2">
+        <span style={{ fontSize: 15, color: '#6B7280', fontWeight: 400 }}>Agregar motivo (opcional)</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5">
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
@@ -321,12 +311,12 @@ function CobrarContent() {
           disabled={!isButtonEnabled}
           style={{
             width: '100%',
-            padding: '15px 0',
-            borderRadius: 12,
+            padding: '16px 0',
+            borderRadius: 28,
             border: 'none',
             cursor: isButtonEnabled ? 'pointer' : 'not-allowed',
-            fontSize: 17,
-            fontWeight: 700,
+            fontSize: 16,
+            fontWeight: 600,
             background: isButtonEnabled ? '#5B21B6' : '#E5E7EB',
             color: isButtonEnabled ? '#ffffff' : '#6B7280',
             transition: 'all 0.2s',
