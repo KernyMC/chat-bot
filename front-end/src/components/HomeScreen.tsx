@@ -470,7 +470,7 @@ function GestionarContent({
 }
 
 interface HomeScreenProps {
-  onNavigate?: (screen: 'home' | 'mi-caja' | 'menu') => void
+  onNavigate?: (screen: 'home' | 'mi-caja' | 'mi-pana' | 'menu') => void
 }
 
 export default function HomeScreen({ onNavigate }: HomeScreenProps) {
@@ -482,6 +482,8 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     setNavTab(tab)
     if (tab === 'mi-caja' && onNavigate) {
       onNavigate('mi-caja')
+    } else if (tab === 'mi-pana' && onNavigate) {
+      onNavigate('mi-pana')
     } else if (tab === 'menu' && onNavigate) {
       onNavigate('menu')
     }

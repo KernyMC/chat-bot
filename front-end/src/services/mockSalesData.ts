@@ -1,0 +1,52 @@
+export const MOCK_SALES_DATA = {
+  storeName: 'Mi Tienda',
+  currency: 'USD',
+  annual: {
+    year: 2025,
+    total: 45230.5,
+    byMonth: [
+      { month: 'Enero', sales: 3200.0, transactions: 145 },
+      { month: 'Febrero', sales: 2800.0, transactions: 123 },
+      { month: 'Marzo', sales: 4100.0, transactions: 187 },
+      { month: 'Abril', sales: 3800.0, transactions: 165 },
+      { month: 'Mayo', sales: 4500.0, transactions: 201 },
+      { month: 'Junio', sales: 3900.0, transactions: 178 },
+      { month: 'Julio', sales: 4200.0, transactions: 190 },
+      { month: 'Agosto', sales: 3600.0, transactions: 162 },
+      { month: 'Septiembre', sales: 3100.0, transactions: 140 },
+      { month: 'Octubre', sales: 4800.0, transactions: 215 },
+      { month: 'Noviembre', sales: 5100.0, transactions: 235 },
+      { month: 'Diciembre', sales: 6130.5, transactions: 280 },
+    ],
+  },
+  currentMonth: {
+    name: 'Abril 2025',
+    total: 3800.0,
+    byWeek: [
+      { week: 'Semana 1', sales: 950.0, transactions: 42 },
+      { week: 'Semana 2', sales: 1100.0, transactions: 48 },
+      { week: 'Semana 3', sales: 890.0, transactions: 39 },
+      { week: 'Semana 4', sales: 860.0, transactions: 36 },
+    ],
+  },
+  currentWeek: {
+    name: 'Semana 14-20 Abr 2025',
+    total: 890.0,
+    byDay: [
+      { day: 'Lunes', sales: 120.0, transactions: 5 },
+      { day: 'Martes', sales: 180.0, transactions: 8 },
+      { day: 'Miércoles', sales: 150.0, transactions: 7 },
+      { day: 'Jueves', sales: 200.0, transactions: 9 },
+      { day: 'Viernes', sales: 240.0, transactions: 11 },
+      { day: 'Sábado', sales: 0, transactions: 0 },
+      { day: 'Domingo', sales: 0, transactions: 0 },
+    ],
+  },
+  topProducts: [
+    { name: 'Producto A', sales: 12500, percentage: 27.6 },
+    { name: 'Producto B', sales: 9800, percentage: 21.7 },
+    { name: 'Producto C', sales: 8200, percentage: 18.1 },
+    { name: 'Producto D', sales: 7600, percentage: 16.8 },
+    { name: 'Otros', sales: 7130.5, percentage: 15.8 },
+  ],
+}

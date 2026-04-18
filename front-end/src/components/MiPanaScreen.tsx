@@ -1,224 +1,776 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
+import type { ChatMessage, OpenAIMessage } from '../types/chat'
+import {
+  callDeepSeek,
+  callDeepSeekWithToolResults,
+  type ToolCallResult,
+} from '../services/deepseekService'
+import { generateSalesPDF } from '../utils/pdfGenerator'
 
 interface MiPanaScreenProps {
   onBack: () => void
 }
 
-export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
-  const [navTab, setNavTab] = useState<NavTab>('mi-pana')
-  const [message, setMessage] = useState('')
+const CHART_COLORS = ['#5B21B6', '#0F766E', '#F59E0B', '#EF4444', '#3B82F6']
 
-  const handleNavChange = (tab: NavTab) => {
-    setNavTab(tab)
-    if (tab !== 'mi-pana') {
-      onBack()
-    }
-  }
+const QUICK_ACTIONS = [
+  { label: '📊 Mis ventas', message: '¿Cómo van mis ventas este mes?' },
+  { label: '📅 Reporte semanal', message: 'Dame el reporte de ventas de esta semana' },
+  { label: '📈 Reporte mensual', message: 'Dame el reporte mensual de ventas' },
+  { label: '📄 Reporte anual PDF', message: 'Genera el reporte anual de ventas en PDF' },
+]
 
+function makeId() {
+  return Math.random().toString(36).slice(2)
+}
+
+function FormattedText({ text, color = '#111827', size = 15 }: { text: string; color?: string; size?: number }) {
+  const lines = text.split('\n').filter((l) => l !== undefined)
+  return (
+    <div style={{ margin: 0, fontSize: size, color, lineHeight: 1.6 }}>
+      {lines.map((line, i) => {
+        const trimmed = line.trim()
+        if (!trimmed) return <div key={i} style={{ height: 6 }} />
+        const isBullet = /^[-•·]\s/.test(trimmed)
+        const isNumbered = /^\d+\.\s/.test(trimmed)
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              gap: isBullet || isNumbered ? 6 : 0,
+              marginBottom: 2,
+            }}
+          >
+            {(isBullet || isNumbered) && (
+              <span style={{ color: '#5B21B6', fontWeight: 700, flexShrink: 0 }}>
+                {isBullet ? '·' : trimmed.match(/^\d+\./)?.[0]}
+              </span>
+            )}
+            <span>{isBullet ? trimmed.slice(2) : isNumbered ? trimmed.replace(/^\d+\.\s/, '') : trimmed}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BotAvatar() {
   return (
     <div
       style={{
-        background: '#f2f2f7',
-        minHeight: '100vh',
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        background: '#EDE9FE',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
       }}
     >
-      {/* Device shell */}
-      <div
-        style={{
-          width: 390,
-          height: '100svh',
-          maxHeight: 844,
-          background: '#ffffff',
-          borderRadius: 44,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          position: 'relative',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '8px 20px 16px 20px',
-            position: 'relative',
-            borderBottom: '1px solid #F3F4F6',
-          }}
-        >
-          {/* Back button */}
-          <button
-            onClick={onBack}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#5B21B6">
+        <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
+      </svg>
+    </div>
+  )
+}
+
+export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
+  const [navTab, setNavTab] = useState<NavTab>('mi-pana')
+  const [input, setInput] = useState('')
+  const [uiMessages, setUiMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      type: 'text',
+      timestamp: Date.now(),
+      content:
+        '¡Hola! Soy Mi Pana, tu asistente de ventas. Puedo mostrarte gráficas, generar reportes PDF y responder tus preguntas sobre tu negocio. ¿En qué te ayudo?',
+    },
+  ])
+  const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [uiMessages])
+
+  const handleNavChange = (tab: NavTab) => {
+    setNavTab(tab)
+    if (tab !== 'mi-pana') onBack()
+  }
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return
+
+    const userMsg: ChatMessage = {
+      id: makeId(),
+      role: 'user',
+      type: 'text',
+      timestamp: Date.now(),
+      content: text,
+    }
+
+    const loadingMsg: ChatMessage = {
+      id: 'loading',
+      role: 'assistant',
+      type: 'loading',
+      timestamp: Date.now(),
+      content: '',
+    }
+
+    setUiMessages((prev) => [...prev.filter((m) => m.id !== 'loading'), userMsg, loadingMsg])
+    setInput('')
+    setIsLoading(true)
+
+    const newHistory: OpenAIMessage[] = [...apiHistory, { role: 'user', content: text }]
+    setApiHistory(newHistory)
+
+    try {
+      const response = await callDeepSeek(newHistory)
+
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        const toolResults: ToolCallResult[] = []
+        const newUiMsgs: ChatMessage[] = []
+
+        for (const tc of response.toolCalls) {
+          const args = JSON.parse(tc.function.arguments)
+          let toolResult = ''
+
+          if (tc.function.name === 'show_chart') {
+            newUiMsgs.push({
+              id: makeId(),
+              role: 'assistant',
+              type: 'chart',
+              timestamp: Date.now(),
+              content: args.summary ?? '',
+              chartType: args.chart_type,
+              title: args.title,
+              data: args.data,
+            })
+            toolResult = 'Gráfica mostrada exitosamente.'
+          } else if (tc.function.name === 'ask_clarification') {
+            newUiMsgs.push({
+              id: makeId(),
+              role: 'assistant',
+              type: 'multiple_choice',
+              timestamp: Date.now(),
+              content: args.question,
+              options: args.options,
+              answered: false,
+            })
+            toolResult = 'Pregunta mostrada al usuario. Esperando su respuesta.'
+          } else if (tc.function.name === 'generate_pdf_report') {
+            newUiMsgs.push({
+              id: makeId(),
+              role: 'assistant',
+              type: 'pdf_ready',
+              timestamp: Date.now(),
+              content: args.summary ?? '',
+              pdfTitle: args.title,
+              period: args.period,
+              tableData: args.table_data,
+              totalAmount: args.total_amount,
+            })
+            toolResult = 'Reporte PDF preparado y listo para descargar.'
+          }
+
+          toolResults.push({ tool_call_id: tc.id, name: tc.function.name, result: toolResult })
+        }
+
+        const followUp = await callDeepSeekWithToolResults(
+          newHistory,
+          response.rawAssistantMessage,
+          toolResults
+        )
+
+        const updatedHistory: OpenAIMessage[] = [
+          ...newHistory,
+          response.rawAssistantMessage,
+          ...toolResults.map((r) => ({
+            role: 'tool' as const,
+            content: r.result,
+            tool_call_id: r.tool_call_id,
+            name: r.name,
+          })),
+          { role: 'assistant', content: followUp },
+        ]
+        setApiHistory(updatedHistory)
+
+        setUiMessages((prev) => {
+          const withoutLoader = prev.filter((m) => m.type !== 'loading')
+          const followUpMsg: ChatMessage | null = followUp
+            ? {
+                id: makeId(),
+                role: 'assistant',
+                type: 'text',
+                timestamp: Date.now(),
+                content: followUp,
+              }
+            : null
+          return [...withoutLoader, ...newUiMsgs, ...(followUpMsg ? [followUpMsg] : [])]
+        })
+      } else {
+        const textContent = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
+        setApiHistory([...newHistory, { role: 'assistant', content: textContent }])
+        setUiMessages((prev) => [
+          ...prev.filter((m) => m.type !== 'loading'),
+          {
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: textContent,
+          },
+        ])
+      }
+    } catch (err) {
+      setUiMessages((prev) => [
+        ...prev.filter((m) => m.type !== 'loading'),
+        {
+          id: makeId(),
+          role: 'assistant',
+          type: 'text',
+          timestamp: Date.now(),
+          content: `Hubo un error: ${err instanceof Error ? err.message : 'Error desconocido'}. Intenta de nuevo.`,
+        },
+      ])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleOptionSelect = (msgId: string, option: string) => {
+    setUiMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.type === 'multiple_choice' ? { ...m, answered: true } : m
+      )
+    )
+    sendMessage(option)
+  }
+
+  const renderMessage = (msg: ChatMessage) => {
+    if (msg.type === 'loading') {
+      return (
+        <div key="loading" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div
             style={{
-              position: 'absolute',
-              left: 20,
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 8,
+              background: '#F3F4F6',
+              borderRadius: 16,
+              borderTopLeftRadius: 4,
+              padding: '14px 18px',
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2.5">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Chatbot icon */}
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: '#EDE9FE',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#5B21B6">
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
-              </svg>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#9CA3AF',
+                    animation: 'mipana-bounce 1.2s infinite',
+                    animationDelay: `${i * 0.2}s`,
+                  }}
+                />
+              ))}
             </div>
-            <span style={{ fontSize: 17, fontWeight: 600, color: '#111827' }}>Mi Pana</span>
           </div>
         </div>
+      )
+    }
 
-        {/* Chat content area */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            paddingBottom: 140,
-          }}
-        >
-          {/* Welcome message from bot */}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <div
+    if (msg.role === 'user') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div
+            style={{
+              background: '#5B21B6',
+              borderRadius: 16,
+              borderBottomRightRadius: 4,
+              padding: '10px 14px',
+              maxWidth: '75%',
+            }}
+          >
+            <FormattedText text={msg.content} color="#ffffff" />
+          </div>
+        </div>
+      )
+    }
+
+    if (msg.type === 'text') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div
+            style={{
+              background: '#F3F4F6',
+              borderRadius: 16,
+              borderTopLeftRadius: 4,
+              padding: '10px 14px',
+              maxWidth: '80%',
+            }}
+          >
+            <FormattedText text={msg.content} />
+          </div>
+        </div>
+      )
+    }
+
+    if (msg.type === 'chart') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div
+            style={{
+              background: '#F3F4F6',
+              borderRadius: 16,
+              borderTopLeftRadius: 4,
+              padding: '12px 14px',
+              maxWidth: '90%',
+            }}
+          >
+            <p
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: '#EDE9FE',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
+                margin: '0 0 10px 0',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#111827',
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#5B21B6">
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
-              </svg>
-            </div>
+              {msg.title}
+            </p>
+
+            {msg.chartType === 'bar' ? (
+              <ResponsiveContainer width={240} height={150}>
+                <BarChart data={msg.data} margin={{ top: 4, right: 4, left: -24, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="name" tick={{ fontSize: 8 }} />
+                  <YAxis tick={{ fontSize: 8 }} />
+                  <Tooltip
+                    formatter={(v: number) => [`$${v.toLocaleString()}`, 'Ventas']}
+                    contentStyle={{ fontSize: 11 }}
+                  />
+                  <Bar dataKey="value" fill="#5B21B6" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <PieChart width={250} height={160}>
+                <Pie data={msg.data} cx="50%" cy="42%" outerRadius={58} dataKey="value">
+                  {msg.data.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => [`$${v.toLocaleString()}`, '']}
+                  contentStyle={{ fontSize: 11 }}
+                />
+                <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            )}
+
+            {msg.content && (
+              <p
+                style={{ margin: '8px 0 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}
+              >
+                {msg.content}
+              </p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (msg.type === 'multiple_choice') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div style={{ maxWidth: '85%' }}>
             <div
               style={{
                 background: '#F3F4F6',
                 borderRadius: 16,
                 borderTopLeftRadius: 4,
-                padding: '12px 16px',
-                maxWidth: '80%',
+                padding: '10px 14px',
+                marginBottom: 8,
               }}
             >
-              <p style={{ margin: 0, fontSize: 15, color: '#111827', lineHeight: 1.5 }}>
-                Hola Kevin! Soy tu asistente virtual Mi Pana. Estoy aqui para ayudarte con tus
-                consultas sobre tu negocio, ventas, y mas. Como puedo ayudarte hoy?
-              </p>
+              <FormattedText text={msg.content} />
             </div>
-          </div>
-
-          {/* Quick action buttons */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 48 }}>
-            {['Ver mis ventas', 'Cerrar caja', 'Ayuda con cobros', 'Reportes'].map((action) => (
-              <button
-                key={action}
-                style={{
-                  background: '#ffffff',
-                  border: '1.5px solid #E5E7EB',
-                  borderRadius: 20,
-                  padding: '8px 14px',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: '#5B21B6',
-                  cursor: 'pointer',
-                }}
-              >
-                {action}
-              </button>
-            ))}
+            {!msg.answered && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {msg.options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => handleOptionSelect(msg.id, opt)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1.5px solid #5B21B6',
+                      borderRadius: 12,
+                      padding: '9px 14px',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: '#5B21B6',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+      )
+    }
 
-        {/* Input area */}
+    if (msg.type === 'pdf_ready') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <BotAvatar />
+          <div
+            style={{
+              background: '#F3F4F6',
+              borderRadius: 16,
+              borderTopLeftRadius: 4,
+              padding: '12px 14px',
+              maxWidth: '85%',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div
+                style={{
+                  background: '#EDE9FE',
+                  borderRadius: 8,
+                  padding: '6px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#5B21B6">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline
+                    points="14 2 14 8 20 8"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                  <line x1="16" y1="13" x2="8" y2="13" stroke="#fff" strokeWidth="1.5" />
+                  <line x1="16" y1="17" x2="8" y2="17" stroke="#fff" strokeWidth="1.5" />
+                </svg>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                  {msg.pdfTitle}
+                </p>
+                <p style={{ margin: 0, fontSize: 11, color: '#6B7280' }}>Listo para descargar</p>
+              </div>
+            </div>
+
+            {msg.content && (
+              <div style={{ marginBottom: 10 }}>
+                <FormattedText text={msg.content} color="#374151" size={13} />
+              </div>
+            )}
+
+            <button
+              onClick={() =>
+                generateSalesPDF({
+                  title: msg.pdfTitle,
+                  period: msg.period,
+                  summary: msg.content,
+                  tableData: msg.tableData,
+                  totalAmount: msg.totalAmount,
+                })
+              }
+              style={{
+                background: '#5B21B6',
+                border: 'none',
+                borderRadius: 10,
+                padding: '9px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#fff"
+                strokeWidth="2.5"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Descargar PDF
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes mipana-bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-5px); }
+        }
+        .mipana-scroll::-webkit-scrollbar { display: none; }
+        body { overflow: hidden; }
+      `}</style>
+      <div
+        style={{
+          background: '#f2f2f7',
+          height: '100vh',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <div
           style={{
-            position: 'absolute',
-            bottom: 80,
-            left: 0,
-            right: 0,
-            padding: '12px 20px',
+            width: 390,
+            height: '100svh',
+            maxHeight: 844,
             background: '#ffffff',
-            borderTop: '1px solid #F3F4F6',
+            borderRadius: 44,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            position: 'relative',
           }}
         >
+          {/* Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
-              background: '#F9FAFB',
-              borderRadius: 24,
-              padding: '8px 16px',
+              justifyContent: 'center',
+              padding: '8px 20px 16px',
+              position: 'relative',
+              borderBottom: '1px solid #F3F4F6',
             }}
           >
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Escribe tu mensaje..."
-              style={{
-                flex: 1,
-                border: 'none',
-                background: 'transparent',
-                fontSize: 15,
-                color: '#111827',
-                outline: 'none',
-              }}
-            />
             <button
+              onClick={onBack}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: '#5B21B6',
+                position: 'absolute',
+                left: 20,
+                background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                padding: 8,
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#111827"
+                strokeWidth="2.5"
+              >
+                <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
-          </div>
-        </div>
 
-        {/* Bottom Navigation */}
-        <BottomNavBar activeTab={navTab} onTabChange={handleNavChange} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: '#EDE9FE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#5B21B6">
+                  <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
+                </svg>
+              </div>
+              <span style={{ fontSize: 17, fontWeight: 600, color: '#111827' }}>Mi Pana</span>
+            </div>
+
+            {isLoading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: '#0F766E',
+                    animation: 'mipana-bounce 1.2s infinite',
+                  }}
+                />
+                <span style={{ fontSize: 11, color: '#0F766E' }}>escribiendo...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div
+            ref={scrollRef}
+            className="mipana-scroll"
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              padding: '20px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              paddingBottom: 140,
+            } as React.CSSProperties}
+          >
+            {uiMessages.map(renderMessage)}
+
+            {/* Quick actions — solo al inicio */}
+            {uiMessages.length === 1 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 48 }}>
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => sendMessage(action.message)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1.5px solid #E5E7EB',
+                      borderRadius: 20,
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: '#5B21B6',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 80,
+              left: 0,
+              right: 0,
+              padding: '12px 20px',
+              background: '#ffffff',
+              borderTop: '1px solid #F3F4F6',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: '#F9FAFB',
+                borderRadius: 24,
+                padding: '8px 8px 8px 16px',
+              }}
+            >
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    sendMessage(input)
+                  }
+                }}
+                placeholder="Escribe tu mensaje..."
+                disabled={isLoading}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: 15,
+                  color: '#111827',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={isLoading || !input.trim()}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: input.trim() && !isLoading ? '#5B21B6' : '#D1D5DB',
+                  border: 'none',
+                  cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.2s',
+                  flexShrink: 0,
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <BottomNavBar activeTab={navTab} onTabChange={handleNavChange} />
+        </div>
       </div>
-    </div>
+    </>
   )
 }
