@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 
 // 25x25 QR-like grid: 1=black, 0=white
 const QR_GRID: number[][] = [
@@ -354,7 +354,7 @@ export default function DeunaNegociosScreen({ onLogin }: DeunaNegociosScreenProp
               Cobra con este QR o Nro de cuenta
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ color: '#7C3AED', fontSize: 15, fontWeight: 500, opacity: 0.75 }}>
+              <span style={{ color: '#9aa0b6', fontSize: 15, fontWeight: 500, opacity: 0.75 }}>
                 Nro. {hidden ? '******7845' : '1234567845'}
               </span>
               <button
@@ -362,26 +362,13 @@ export default function DeunaNegociosScreen({ onLogin }: DeunaNegociosScreenProp
                 style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#6B7280' }}
               >
                 {hidden ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
+                  createElement('ion-icon', { name: 'eye-off', style: { fontSize: 20, color: '#471f7a' } })
                 ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
+                  createElement('ion-icon', { name: 'eye', style: { fontSize: 20, color: '#471f7a' } })
                 )}
               </button>
               <button style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#6B7280' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="18" cy="5" r="3"/>
-                  <circle cx="6" cy="12" r="3"/>
-                  <circle cx="18" cy="19" r="3"/>
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                </svg>
+                {createElement('ion-icon', { name: 'share-social', style: { fontSize: 20, color: '#471f7a' } })}
               </button>
             </div>
           </div>

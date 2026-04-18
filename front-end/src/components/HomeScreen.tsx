@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
+import qrCodeIcon from '../assets/qrcode.svg'
+import headphonesIcon from '../assets/audifonos.svg'
+import bellIcon from '../assets/campana.svg'
 
 // Quick action button component
 function QuickAction({ icon, label }: { icon: React.ReactNode; label: string }) {
@@ -360,7 +363,7 @@ function GestionarContent({
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <p style={{ margin: 0, fontSize: 14, color: '#6B7280', marginBottom: 6 }}>Mi Saldo</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 26, fontWeight: 700, color: '#111827' }}>$</span>
@@ -372,16 +375,9 @@ function GestionarContent({
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
               >
                 {balanceHidden ? (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
+                  createElement('ion-icon', { name: 'eye-off', style: { fontSize: 22, color: '#202020' } })
                 ) : (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
+                  createElement('ion-icon', { name: 'eye', style: { fontSize: 22, color: '#202020' } })
                 )}
               </button>
             </div>
@@ -520,11 +516,11 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
               justifyContent: 'space-between',
               paddingLeft: 20,
               paddingRight: 20,
-              paddingTop: 8,
-              paddingBottom: 12,
+              paddingTop: 10,
+              paddingBottom: 10,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {/* Store avatar */}
               <div
                 style={{
@@ -550,8 +546,8 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                       color: '#5B21B6',
                       fontSize: 11,
                       fontWeight: 600,
-                      padding: '3px 10px',
-                      borderRadius: 12,
+                      padding: '4px 10px',
+                      borderRadius: 14,
                     }}
                   >
                     Admin
@@ -563,29 +559,81 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
               </div>
             </div>
             {/* Right icons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {/* QR Scanner */}
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <path d="M14 14h3v3h-3z" />
-                  <path d="M17 17h4v4h-4z" />
-                </svg>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 2,
+                  width: 24,
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={qrCodeIcon}
+                  alt="QR"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(10%) sepia(13%) saturate(938%) hue-rotate(183deg) brightness(95%) contrast(93%)',
+                  }}
+                />
               </button>
               {/* Bell */}
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2">
-                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 01-3.46 0" />
-                </svg>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 2,
+                  width: 24,
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={bellIcon}
+                  alt="Notificaciones"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(10%) sepia(13%) saturate(938%) hue-rotate(183deg) brightness(95%) contrast(93%)',
+                  }}
+                />
               </button>
               {/* Headphones */}
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="#111827">
-                  <path d="M12 3C7.03 3 3 7.03 3 12v7c0 1.1.9 2 2 2h1c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-1c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h1c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z" />
-                </svg>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 2,
+                  width: 24,
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={headphonesIcon}
+                  alt="Soporte"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(10%) sepia(13%) saturate(938%) hue-rotate(183deg) brightness(95%) contrast(93%)',
+                  }}
+                />
               </button>
             </div>
           </div>

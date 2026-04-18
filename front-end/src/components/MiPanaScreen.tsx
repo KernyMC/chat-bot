@@ -13,6 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
+import mipanaIcon from '../assets/mipana.svg'
 import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
   callDeepSeek,
@@ -83,9 +84,16 @@ function BotAvatar() {
         flexShrink: 0,
       }}
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="#5B21B6">
-        <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
-      </svg>
+      <img
+        src={mipanaIcon}
+        alt="Mi Pana"
+        style={{
+          width: 22,
+          height: 22,
+          objectFit: 'contain',
+          filter: 'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%)',
+        }}
+      />
     </div>
   )
 }
@@ -546,6 +554,11 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
           30% { transform: translateY(-5px); }
         }
         .mipana-scroll::-webkit-scrollbar { display: none; }
+        .mipana-input::placeholder {
+          color: #6B7280;
+          opacity: 1;
+          font-weight: 500;
+        }
         body { overflow: hidden; }
       `}</style>
       <div
@@ -618,9 +631,16 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   justifyContent: 'center',
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#5B21B6">
-                  <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L2 22l5.71-.97A9.96 9.96 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.29 0-2.52-.3-3.61-.85l-.39-.19-3.36.57.57-3.36-.19-.39C4.3 14.52 4 13.29 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z" />
-                </svg>
+                <img
+                  src={mipanaIcon}
+                  alt="Mi Pana"
+                  style={{
+                    width: 20,
+                    height: 20,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%)',
+                  }}
+                />
               </div>
               <span style={{ fontSize: 17, fontWeight: 600, color: '#111827' }}>Mi Pana</span>
             </div>
@@ -663,7 +683,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
-              paddingBottom: 140,
+              paddingBottom: 180,
             } as React.CSSProperties}
           >
             {uiMessages.map(renderMessage)}
@@ -697,7 +717,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
           <div
             style={{
               position: 'absolute',
-              bottom: 80,
+              bottom: 115,
               left: 0,
               right: 0,
               padding: '12px 20px',
@@ -710,12 +730,14 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                background: '#F9FAFB',
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
                 borderRadius: 24,
                 padding: '8px 8px 8px 16px',
               }}
             >
               <input
+                className="mipana-input"
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -733,6 +755,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   background: 'transparent',
                   fontSize: 15,
                   color: '#111827',
+                  fontWeight: 500,
                   outline: 'none',
                 }}
               />

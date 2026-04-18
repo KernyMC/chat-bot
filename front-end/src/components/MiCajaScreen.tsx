@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
 
 // Mock data for sales
@@ -111,19 +111,23 @@ function CajaActivaContent() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 8,
+            marginBottom: 2,
           }}
         >
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Mis ventas</h2>
           <button
             style={{
-              background: 'transparent',
-              border: '1.5px solid #5B21B6',
-              borderRadius: 20,
-              padding: '8px 16px',
-              fontSize: 13,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#EDE9FE',
+              border: 'none',
+              borderRadius: 999,
+              padding: '10px 18px',
+              fontSize: 14,
               fontWeight: 600,
               color: '#5B21B6',
+              lineHeight: 1,
               cursor: 'pointer',
             }}
           >
@@ -421,9 +425,10 @@ export default function MiCajaScreen({ onBack }: MiCajaScreenProps) {
             }}
           >
             <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff' }}>Mi caja</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            {createElement('ion-icon', {
+              name: 'chevron-down-circle',
+              style: { fontSize: 16, color: '#ffffff' },
+            })}
           </button>
         </div>
 
