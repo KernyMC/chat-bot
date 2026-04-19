@@ -101,11 +101,19 @@ Oferta 2×1 podría activar demanda"]*
 
 *[Cuando aparece]:*
 
-"Mi Pana detectó que ya llevamos 16 meses cobrando con DeUna —
-**4 meses más del mínimo que Banco Pichincha exige**
-para aprobar un crédito hasta $20,000.
+*[Leer con naturalidad, como si el asistente fuera tu amigo]:*
 
-Toco el link. Me aprueban en minutos. Sin ir a una agencia.
+"'Mi pana, llevas 16 meses de cobros seguidos con DeUna con un promedio de $105,55 al mes.
+
+Eso ya te abre la puerta al Crédito para Negocio y Emprendedores de Banco Pichincha: **hasta $2,000**.
+
+Esa es plata suficiente para reabastecer tu inventario, y acolitarte a saldar deudas sin tocar lo que tienes en caja.
+
+**Sin ir a una agencia, sin armar carpetas.**'
+
+*[Pausa breve]*
+
+Toco el link. Me aprueban en minutos.
 
 **Eso es lo que necesitamos los microcomercientes:
 menos complicación, más acción.**"
