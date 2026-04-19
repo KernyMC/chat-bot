@@ -9,6 +9,16 @@ type Screen = "login" | "home" | "mi-caja" | "mi-pana" | "menu";
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("login");
+  const [miPanaContext, setMiPanaContext] = useState<{ initialPrompt?: string } | undefined>();
+
+  const handleNavigate = (screen: Screen, context?: { initialPrompt?: string }) => {
+    setCurrentScreen(screen);
+    if (screen === "mi-pana" && context) {
+      setMiPanaContext(context);
+    } else {
+      setMiPanaContext(undefined);
+    }
+  };
 
   // Login screen (DeunaNegociosScreen)
   if (currentScreen === "login") {
@@ -26,7 +36,12 @@ function App() {
 
   // Mi Pana screen (chatbot)
   if (currentScreen === "mi-pana") {
-    return <MiPanaScreen onBack={() => setCurrentScreen("home")} />;
+    return (
+      <MiPanaScreen
+        onBack={() => setCurrentScreen("home")}
+        initialPrompt={miPanaContext?.initialPrompt}
+      />
+    );
   }
 
   // Menu screen
@@ -41,7 +56,7 @@ function App() {
 
   // Home screen (default)
   return (
-    <HomeScreen onNavigate={(screen) => setCurrentScreen(screen as Screen)} />
+    <HomeScreen onNavigate={handleNavigate} />
   );
 }
 

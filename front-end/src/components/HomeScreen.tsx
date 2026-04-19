@@ -1,7 +1,7 @@
 import { createElement, useState, useEffect } from 'react'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
-import NotificationDropdown, { useNotifications, useSwipeDown } from './NotificationDropdown'
-import AppNotifications, { usePaymentNotifications, useMiPanaNotifications } from './AppNotifications'
+import NotificationDropdown, { useSwipeDown } from './NotificationDropdown'
+import AppNotifications, { usePaymentNotifications, useMiPanaNotifications, type MiPanaNotification } from './AppNotifications'
 import { getSuggestions } from '../services/backendService'
 import qrCodeIcon from '../assets/qrcode.svg'
 import headphonesIcon from '../assets/audifonos.svg'
@@ -476,7 +476,7 @@ function GestionarContent({
 }
 
 interface HomeScreenProps {
-  onNavigate?: (screen: 'home' | 'mi-caja' | 'mi-pana' | 'menu') => void
+  onNavigate?: (screen: 'home' | 'mi-caja' | 'mi-pana' | 'menu', context?: { initialPrompt?: string }) => void
 }
 
 export default function HomeScreen({ onNavigate }: HomeScreenProps) {
@@ -485,7 +485,6 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [navTab, setNavTab] = useState<NavTab>('inicio')
   const [showNativeNotifications, setShowNativeNotifications] = useState(false)
   const [showAppNotifications, setShowAppNotifications] = useState(false)
-  const { notifications, addNotification } = useNotifications()
   const { notifications: paymentNotifications, addPaymentNotification, count: paymentCount } = usePaymentNotifications()
   const { notifications: miPanaAppNotifications, addMiPanaNotification, count: miPanaCount } = useMiPanaNotifications()
 
@@ -503,14 +502,12 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       .then((suggestions) => {
         if (!ignore) {
           suggestions.forEach((s) => {
-            addNotification(s.title, s.message, s.icon)
             addMiPanaNotification(s.title, s.message, s.icon)
           })
         }
       })
       .catch(() => {
         if (!ignore) {
-          addNotification('Mi Pana', 'Conecta el backend para ver sugerencias reales.', 'tip')
           addMiPanaNotification('Crecimiento semanal', 'Conecta el backend para ver sugerencias reales.', 'tip')
         }
       })
@@ -538,9 +535,10 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     }
   }
 
-  const handleNativeNotificationClick = () => {
+  const handleNativeNotificationClick = (notif: MiPanaNotification) => {
     setShowNativeNotifications(false)
-    onNavigate?.('mi-pana')
+    const prompt = `Cuéntame más sobre esto: "${notif.title}". ${notif.message}`
+    onNavigate?.('mi-pana', { initialPrompt: prompt })
   }
 
   return (
@@ -826,7 +824,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
         {/* Native Phone Notification Dropdown (activated by long press + swipe down) */}
         {showNativeNotifications && (
           <NotificationDropdown
-            notifications={notifications}
+            notifications={miPanaAppNotifications}
             onClose={() => setShowNativeNotifications(false)}
             onNotificationClick={handleNativeNotificationClick}
           />
@@ -838,9 +836,11 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           onClose={() => setShowAppNotifications(false)}
           paymentNotifications={paymentNotifications}
           miPanaNotifications={miPanaAppNotifications}
-          onMiPanaClick={() => {
+          onMiPanaClick={(notif) => {
             setShowAppNotifications(false)
-            onNavigate?.('mi-pana')
+            // Crear un prompt con contexto de la notificación
+            const prompt = `Cuéntame más sobre esto: "${notif.title}". ${notif.message}`
+            onNavigate?.('mi-pana', { initialPrompt: prompt })
           }}
         />
       </div>

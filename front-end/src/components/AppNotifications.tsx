@@ -23,7 +23,7 @@ interface AppNotificationsProps {
   onClose: () => void
   paymentNotifications: PaymentNotification[]
   miPanaNotifications: MiPanaNotification[]
-  onMiPanaClick?: () => void
+  onMiPanaClick?: (notification: MiPanaNotification) => void
 }
 
 function formatTimeCompact(date: Date): string {
@@ -251,7 +251,7 @@ export default function AppNotifications({
                     {miPanaNotifications.map((notif) => (
                       <div
                         key={notif.id}
-                        onClick={onMiPanaClick}
+                        onClick={() => onMiPanaClick?.(notif)}
                         style={{
                           display: 'flex',
                           alignItems: 'flex-start',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import mipanaIcon from '../assets/mipana.svg'
+import type { MiPanaNotification } from './AppNotifications'
 
 export interface Notification {
   id: string
@@ -11,9 +12,9 @@ export interface Notification {
 }
 
 interface NotificationDropdownProps {
-  notifications: Notification[]
+  notifications: MiPanaNotification[]
   onClose: () => void
-  onNotificationClick?: (notification: Notification) => void
+  onNotificationClick?: (notification: MiPanaNotification) => void
 }
 
 function formatTime(date: Date): string {
@@ -397,16 +398,6 @@ export default function NotificationDropdown({
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
                       {notif.title}
                     </span>
-                    {!notif.read && (
-                      <div
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          background: '#5B21B6',
-                        }}
-                      />
-                    )}
                   </div>
                   <span style={{ fontSize: 12, color: '#9CA3AF' }}>
                     {formatTime(notif.timestamp)}

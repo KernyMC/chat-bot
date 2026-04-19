@@ -26,6 +26,7 @@ import { generateSalesPDF } from '../utils/pdfGenerator'
 
 interface MiPanaScreenProps {
   onBack: () => void
+  initialPrompt?: string // Contexto inicial para enviar automáticamente (ej: desde notificación)
 }
 
 const CHART_COLORS = ['#5B21B6', '#0F766E', '#F59E0B', '#EF4444', '#3B82F6']
@@ -122,7 +123,7 @@ function BotAvatar() {
   )
 }
 
-export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
+export default function MiPanaScreen({ onBack, initialPrompt }: MiPanaScreenProps) {
   const [navTab, setNavTab] = useState<NavTab>('mi-pana')
   const [input, setInput] = useState('')
   const [uiMessages, setUiMessages] = useState<ChatMessage[]>([
@@ -132,13 +133,25 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
       type: 'text',
       timestamp: Date.now(),
       content:
-        '¡Hola! Soy Mi Pana, tu asistente de ventas. Puedo mostrarte gráficas, generar reportes PDF y responder tus preguntas sobre tu negocio. ¿En qué te ayudo?',
+        '¡Hola! Soy tu Pana, tu asistente de ventas. Puedo mostrarte gráficas, generar reportes PDF y responder tus preguntas sobre tu negocio. ¿En qué te ayudo?',
     },
   ])
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [initialPromptSent, setInitialPromptSent] = useState(false)
   // Usar 'groq' para funcionar sin backend
   const provider: AIProvider = 'groq'
+
+  // Enviar automáticamente el initialPrompt si está presente
+  useEffect(() => {
+    if (initialPrompt && !initialPromptSent) {
+      setInitialPromptSent(true)
+      // Dar un pequeño delay para que el usuario vea la transición
+      setTimeout(() => {
+        sendMessage(initialPrompt)
+      }, 500)
+    }
+  }, [initialPrompt, initialPromptSent])
 
   // Parses <function=name>{...}</function> embedded in text (some models skip structured tool calls)
   const parseFunctionCalls = (rawText: string): { cleanText: string; uiMsgs: ChatMessage[] } => {
