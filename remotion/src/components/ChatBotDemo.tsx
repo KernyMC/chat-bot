@@ -545,11 +545,9 @@ export function ChatBotDemo() {
         >
           {/* Mensaje proactivo del bot sobre crédito */}
           <BotMessage
-            text="🏦 Mi pana, llevas 16 meses de cobros seguidos con DeUna con un promedio de $105,55 al mes.
+            text="🏦 Mi pana, llevas 16 meses de cobros seguidos con DeUna.
 
-Eso ya te abre la puerta al Crédito para Negocio y Emprendedores de Banco Pichincha: hasta $2,000.
-
-¿Te gustaría saber más?"
+No has pensado en ahorrar un poco cada mes?"
             startFrame={botCreditStart}
           />
 
