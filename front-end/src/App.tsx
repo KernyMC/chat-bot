@@ -1,42 +1,48 @@
-import { useState } from 'react'
-import HomeScreen from './components/HomeScreen'
-import MiCajaScreen from './components/MiCajaScreen'
-import MiPanaScreen from './components/MiPanaScreen'
-import MenuScreen from './components/MenuScreen'
-import DeunaNegociosScreen from './components/DeunaNegociosScreen'
+import { useState } from "react";
+import DeunaNegociosScreen from "./components/DeunaNegociosScreen";
+import HomeScreen from "./components/HomeScreen";
+import MenuScreen from "./components/MenuScreen";
+import MiCajaScreen from "./components/MiCajaScreen";
+import MiPanaScreen from "./components/MiPanaScreen";
 
-type Screen = 'login' | 'home' | 'mi-caja' | 'mi-pana' | 'menu'
+type Screen = "login" | "home" | "mi-caja" | "mi-pana" | "menu";
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login')
+  const [currentScreen, setCurrentScreen] = useState<Screen>("login");
 
   // Login screen (DeunaNegociosScreen)
-  if (currentScreen === 'login') {
-    return <DeunaNegociosScreen onLogin={() => setCurrentScreen('home')} />
+  if (currentScreen === "login") {
+    return (
+      <DeunaNegociosScreen
+        onLogin={(destination = "home") => setCurrentScreen(destination)}
+      />
+    );
   }
 
   // Mi Caja screen
-  if (currentScreen === 'mi-caja') {
-    return <MiCajaScreen onBack={() => setCurrentScreen('home')} />
+  if (currentScreen === "mi-caja") {
+    return <MiCajaScreen onBack={() => setCurrentScreen("home")} />;
   }
 
   // Mi Pana screen (chatbot)
-  if (currentScreen === 'mi-pana') {
-    return <MiPanaScreen onBack={() => setCurrentScreen('home')} />
+  if (currentScreen === "mi-pana") {
+    return <MiPanaScreen onBack={() => setCurrentScreen("home")} />;
   }
 
   // Menu screen
-  if (currentScreen === 'menu') {
+  if (currentScreen === "menu") {
     return (
       <MenuScreen
-        onBack={() => setCurrentScreen('home')}
-        onLogout={() => setCurrentScreen('login')}
+        onBack={() => setCurrentScreen("home")}
+        onLogout={() => setCurrentScreen("login")}
       />
-    )
+    );
   }
 
   // Home screen (default)
-  return <HomeScreen onNavigate={(screen) => setCurrentScreen(screen as Screen)} />
+  return (
+    <HomeScreen onNavigate={(screen) => setCurrentScreen(screen as Screen)} />
+  );
 }
 
-export default App
+export default App;

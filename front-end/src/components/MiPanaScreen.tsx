@@ -674,6 +674,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
             flexDirection: 'column',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
             position: 'relative',
+            paddingBottom: 96,
           }}
         >
           {/* Header */}
@@ -807,7 +808,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
-              paddingBottom: 180,
+              paddingBottom: 16,
             } as React.CSSProperties}
           >
             {uiMessages.map(renderMessage)}
@@ -840,10 +841,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
           {/* Input */}
           <div
             style={{
-              position: 'absolute',
-              bottom: 115,
-              left: 0,
-              right: 0,
+              flexShrink: 0,
               padding: '12px 20px',
               background: '#ffffff',
               borderTop: '1px solid #F3F4F6',
