@@ -1,7 +1,14 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+# Set working directory to project root first
+WORKDIR /project
+
+# Copy .env from root to project root
+COPY .env .env
+
+# Now set working directory to /project/front-end for build
+WORKDIR /project/front-end
 
 # Copy package files from front-end directory
 COPY front-end/package.json front-end/package-lock.json* ./
@@ -12,10 +19,7 @@ RUN npm ci
 # Copy front-end source code
 COPY front-end/ .
 
-# Copy .env from root (this will override front-end/.env if it exists)
-COPY .env .env
-
-# Build the application (Vite will read .env and embed the vars)
+# Build the application (Vite will read .env from parent dir)
 RUN npm run build
 
 # Stage 2: Production

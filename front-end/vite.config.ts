@@ -5,6 +5,9 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Tell Vite to look for .env files in the parent directory (project root)
+  envDir: '..',
+
   plugins: [
     tailwindcss(),
     react(),
