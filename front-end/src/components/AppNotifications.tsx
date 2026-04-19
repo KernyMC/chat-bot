@@ -360,7 +360,49 @@ export default function AppNotifications({
 
 // Hook para manejar notificaciones de pagos
 export function usePaymentNotifications() {
-  const [notifications, setNotifications] = useState<PaymentNotification[]>([])
+  // Notificaciones de ejemplo para el prototipo
+  const [notifications, setNotifications] = useState<PaymentNotification[]>([
+    {
+      id: '1',
+      amount: 45.50,
+      senderName: 'María González',
+      accountEnding: '3421',
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // hace 2 horas
+      type: 'received',
+    },
+    {
+      id: '2',
+      amount: 128.75,
+      senderName: 'Carlos Mendoza',
+      accountEnding: '7892',
+      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000), // hace 5 horas
+      type: 'received',
+    },
+    {
+      id: '3',
+      amount: 89.00,
+      senderName: 'Ana Rodríguez',
+      accountEnding: '1567',
+      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // hace 1 día
+      type: 'received',
+    },
+    {
+      id: '4',
+      amount: 250.00,
+      senderName: 'Distribuidora La Merced',
+      accountEnding: '9034',
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // hace 2 días
+      type: 'sent',
+    },
+    {
+      id: '5',
+      amount: 67.25,
+      senderName: 'Roberto Silva',
+      accountEnding: '4512',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // hace 3 días
+      type: 'received',
+    },
+  ])
 
   const addPaymentNotification = (
     amount: number,
@@ -394,7 +436,51 @@ export function usePaymentNotifications() {
 
 // Hook para manejar notificaciones de Mi Pana (para la app)
 export function useMiPanaNotifications() {
-  const [notifications, setNotifications] = useState<MiPanaNotification[]>([])
+  // Notificaciones de ejemplo para el prototipo (basadas en el backend)
+  const [notifications, setNotifications] = useState<MiPanaNotification[]>([
+    {
+      id: '1',
+      title: 'Crecimiento semanal',
+      message: 'Tus ventas subieron 18% vs la semana pasada. Sigue así, vas por buen camino.',
+      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000), // hace 1 hora
+      icon: 'growth',
+    },
+    {
+      id: '2',
+      title: 'Ya calificas para crédito',
+      message: 'Llevas 16 meses cobrando con DeUna. Ya tienes el historial para aplicar al Microcrédito Digital de Banco Pichincha (hasta $20,000).',
+      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000), // hace 3 horas
+      icon: 'payment',
+    },
+    {
+      id: '3',
+      title: 'Consejo del día',
+      message: 'Tus mejores ventas son los lunes y viernes. Considera ofrecer promociones los miércoles para balancear.',
+      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // hace 1 día
+      icon: 'tip',
+    },
+    {
+      id: '4',
+      title: 'Alerta de ventas',
+      message: 'Hoy llevas $47 a esta hora. Normalmente a las 2pm ya tienes $85. Revisa si hay algo que puedas ajustar.',
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // hace 2 días
+      icon: 'alert',
+    },
+    {
+      id: '5',
+      title: 'Cliente recurrente',
+      message: 'María González te ha comprado 8 veces este mes. Es tu cliente más fiel — considera darle una yapa.',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // hace 3 días
+      icon: 'tip',
+    },
+    {
+      id: '6',
+      title: 'Categoría top del mes',
+      message: 'Bebidas generó el 42% de tus ingresos en abril. Mantén buen stock para mayo.',
+      timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), // hace 4 días
+      icon: 'growth',
+    },
+  ])
 
   const addMiPanaNotification = (
     title: string,
