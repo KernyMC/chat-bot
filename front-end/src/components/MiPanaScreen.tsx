@@ -21,7 +21,7 @@ import {
   type AIProvider,
   type ToolCallResult,
 } from '../services/aiService'
-import { sendToBackend, getReportFromBackend } from '../services/backendService'
+// import { sendToBackend, getReportFromBackend } from '../services/backendService'
 import { generateSalesPDF } from '../utils/pdfGenerator'
 
 interface MiPanaScreenProps {
@@ -183,18 +183,19 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
     if (tab !== 'mi-pana') onBack()
   }
 
-  function _detectReportType(message: string): 'weekly' | 'monthly' | 'annual' | null {
-    const lower = message.toLowerCase()
-    const isReport =
-      lower.includes('pdf') ||
-      lower.includes('reporte') ||
-      lower.includes('descargar') ||
-      lower.includes('exportar')
-    if (!isReport) return null
-    if (lower.includes('semana') || lower.includes('semanal')) return 'weekly'
-    if (lower.includes('anual') || lower.includes('año') || lower.includes('2025')) return 'annual'
-    return 'monthly'
-  }
+  // Commented out - not used when using Groq directly
+  // function _detectReportType(message: string): 'weekly' | 'monthly' | 'annual' | null {
+  //   const lower = message.toLowerCase()
+  //   const isReport =
+  //     lower.includes('pdf') ||
+  //     lower.includes('reporte') ||
+  //     lower.includes('descargar') ||
+  //     lower.includes('exportar')
+  //   if (!isReport) return null
+  //   if (lower.includes('semana') || lower.includes('semanal')) return 'weekly'
+  //   if (lower.includes('anual') || lower.includes('año') || lower.includes('2025')) return 'annual'
+  //   return 'monthly'
+  // }
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
