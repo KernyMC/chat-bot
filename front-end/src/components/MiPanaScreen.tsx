@@ -18,14 +18,17 @@ import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
   callAI,
   callAIWithToolResults,
+  AI_PROVIDERS,
   type AIProvider,
   type ToolCallResult,
 } from '../services/aiService'
-import { sendToBackend, getReportFromBackend } from '../services/backendService'
+import { sendToBackend, getReportFromBackend, getWelcomeMessage } from '../services/backendService'
 import { generateSalesPDF } from '../utils/pdfGenerator'
 
 interface MiPanaScreenProps {
   onBack: () => void
+  comercioId?: string
+  initialMessage?: string
 }
 
 const CHART_COLORS = ['#5B21B6', '#0F766E', '#F59E0B', '#EF4444', '#3B82F6']
@@ -53,38 +56,44 @@ function formatTooltipCurrency(value: unknown, label: string): [string, string] 
   return [`$${safeValue.toLocaleString()}`, label]
 }
 
+function renderInline(text: string, color: string) {
+  // Bold: **text** and markdown links: [label](url)
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g)
+  return parts.map((p, i) => {
+    if (p.startsWith('**') && p.endsWith('**')) {
+      return <strong key={i} style={{ color: '#3B0764' }}>{p.slice(2, -2)}</strong>
+    }
+    const linkMatch = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (linkMatch) {
+      return (
+        <a key={i} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+          style={{ color: '#5B21B6', fontWeight: 600, textDecoration: 'underline' }}>
+          {linkMatch[1]}
+        </a>
+      )
+    }
+    return <span key={i} style={{ color }}>{p}</span>
+  })
+}
+
 function FormattedText({ text, color = '#111827', size = 15 }: { text: string; color?: string; size?: number }) {
   const lines = text.split('\n').filter((l) => l !== undefined)
   return (
-    <div style={{ margin: 0, fontSize: size, color, lineHeight: 1.6, textAlign: 'left' }}>
+    <div style={{ margin: 0, fontSize: size, color, lineHeight: 1.6 }}>
       {lines.map((line, i) => {
         const trimmed = line.trim()
         if (!trimmed) return <div key={i} style={{ height: 6 }} />
         const isBullet = /^[-•·]\s/.test(trimmed)
         const isNumbered = /^\d+\.\s/.test(trimmed)
-        const bulletLabel = isNumbered ? (trimmed.match(/^\d+\./)?.[0] ?? '') : '•'
-        const bodyText = isBullet
-          ? trimmed.slice(2)
-          : isNumbered
-            ? trimmed.replace(/^\d+\.\s/, '')
-            : trimmed
+        const content = isBullet ? trimmed.slice(2) : isNumbered ? trimmed.replace(/^\d+\.\s/, '') : trimmed
         return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 6,
-              marginBottom: isBullet || isNumbered ? 4 : 2,
-              paddingLeft: isBullet || isNumbered ? 4 : 0,
-            }}
-          >
+          <div key={i} style={{ display: 'flex', gap: isBullet || isNumbered ? 6 : 0, marginBottom: 2 }}>
             {(isBullet || isNumbered) && (
-              <span style={{ color: '#5B21B6', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
-                {bulletLabel}
+              <span style={{ color: '#5B21B6', fontWeight: 700, flexShrink: 0 }}>
+                {isBullet ? '·' : trimmed.match(/^\d+\./)?.[0]}
               </span>
             )}
-            <span style={{ flex: 1 }}>{bodyText}</span>
+            <span>{renderInline(content, color)}</span>
           </div>
         )
       })}
@@ -122,7 +131,7 @@ function BotAvatar() {
   )
 }
 
-export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
+export default function MiPanaScreen({ onBack, comercioId = 'COM-001', initialMessage }: MiPanaScreenProps) {
   const [navTab, setNavTab] = useState<NavTab>('mi-pana')
   const [input, setInput] = useState('')
   const [uiMessages, setUiMessages] = useState<ChatMessage[]>([
@@ -131,47 +140,35 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
       role: 'assistant',
       type: 'text',
       timestamp: Date.now(),
-      content:
-        '¡Hola! Soy Mi Pana, tu asistente de ventas. Puedo mostrarte gráficas, generar reportes PDF y responder tus preguntas sobre tu negocio. ¿En qué te ayudo?',
+      content: '¡Oe, veci! Soy Mi Pana. Un momento...',
     },
   ])
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const provider: AIProvider | 'backend' = 'groq'
-
-  // Parses <function=name>{...}</function> embedded in text (some models skip structured tool calls)
-  const parseFunctionCalls = (rawText: string): { cleanText: string; uiMsgs: ChatMessage[] } => {
-    const uiMsgs: ChatMessage[] = []
-    const cleanText = rawText.replace(
-      /<function=(\w+)>([\s\S]*?)<\/function>/g,
-      (_, name: string, jsonStr: string) => {
-        try {
-          const args = JSON.parse(jsonStr.trim())
-          if (name === 'show_chart') {
-            uiMsgs.push({
-              id: makeId(), role: 'assistant', type: 'chart', timestamp: Date.now(),
-              content: args.summary ?? '', chartType: args.chart_type,
-              title: args.title, data: args.data,
-            })
-          } else if (name === 'ask_clarification') {
-            uiMsgs.push({
-              id: makeId(), role: 'assistant', type: 'multiple_choice', timestamp: Date.now(),
-              content: args.question, options: args.options, answered: false,
-            })
-          } else if (name === 'generate_pdf_report') {
-            uiMsgs.push({
-              id: makeId(), role: 'assistant', type: 'pdf_ready', timestamp: Date.now(),
-              content: args.summary ?? '', pdfTitle: args.title,
-              period: args.period, tableData: args.table_data, totalAmount: args.total_amount,
-            })
-          }
-        } catch { /* skip malformed */ }
-        return ''
-      }
-    ).trim()
-    return { cleanText, uiMsgs }
-  }
+  const [provider, setProvider] = useState<AIProvider | 'backend'>(() => {
+    const env = import.meta.env.VITE_CHAT_PROVIDER as string
+    if (env === 'backend' || env === 'openai' || env === 'groq') return env
+    return 'deepseek'
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const initialSentRef = useRef(false)
+
+  useEffect(() => {
+    getWelcomeMessage(comercioId).then((msg) => {
+      setUiMessages([{ id: 'welcome', role: 'assistant', type: 'text', timestamp: Date.now(), content: msg }])
+      if (initialMessage && !initialSentRef.current) {
+        initialSentRef.current = true
+        setTimeout(() => sendMessage(initialMessage), 300)
+      }
+    }).catch(() => {
+      if (initialMessage && !initialSentRef.current) {
+        initialSentRef.current = true
+        setTimeout(() => sendMessage(initialMessage), 300)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comercioId])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -222,8 +219,8 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
       try {
         const reportType = _detectReportType(text)
         const backendRes = reportType
-          ? await getReportFromBackend(reportType)
-          : await sendToBackend(text)
+          ? await getReportFromBackend(reportType, comercioId)
+          : await sendToBackend(text, comercioId)
 
         const newMsgs: ChatMessage[] = []
 
@@ -240,13 +237,6 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
             totalAmount: backendRes.pdfData.totalAmount,
           })
         } else {
-          newMsgs.push({
-            id: makeId(),
-            role: 'assistant',
-            type: 'text',
-            timestamp: Date.now(),
-            content: backendRes.text || 'No pude preparar una respuesta.',
-          })
           if (backendRes.chart) {
             newMsgs.push({
               id: makeId(),
@@ -257,6 +247,22 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               chartType: backendRes.chart.chartType,
               title: backendRes.chart.title,
               data: backendRes.chart.data,
+            })
+          }
+          newMsgs.push({
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: backendRes.text || 'No pude preparar una respuesta.',
+          })
+          if (backendRes.productoUrl) {
+            newMsgs.push({
+              id: makeId(),
+              role: 'assistant',
+              type: 'text',
+              timestamp: Date.now(),
+              content: `🏦 [Ver condiciones en Banco Pichincha →](${backendRes.productoUrl})`,
             })
           }
         }
@@ -365,19 +371,21 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 content: followUp,
               }
             : null
-          return [...withoutLoader, ...(followUpMsg ? [followUpMsg] : []), ...newUiMsgs]
+          return [...withoutLoader, ...newUiMsgs, ...(followUpMsg ? [followUpMsg] : [])]
         })
       } else {
-        const rawText = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
-        const { cleanText, uiMsgs: embeddedMsgs } = parseFunctionCalls(rawText)
-        setApiHistory([...newHistory, { role: 'assistant', content: rawText }])
-        setUiMessages((prev) => {
-          const withoutLoader = prev.filter((m) => m.type !== 'loading')
-          const textMsgs: ChatMessage[] = cleanText
-            ? [{ id: makeId(), role: 'assistant', type: 'text', timestamp: Date.now(), content: cleanText }]
-            : []
-          return [...withoutLoader, ...textMsgs, ...embeddedMsgs]
-        })
+        const textContent = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
+        setApiHistory([...newHistory, { role: 'assistant', content: textContent }])
+        setUiMessages((prev) => [
+          ...prev.filter((m) => m.type !== 'loading'),
+          {
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: textContent,
+          },
+        ])
       }
     } catch (err) {
       setUiMessages((prev) => [
@@ -466,7 +474,6 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               borderTopLeftRadius: 4,
               padding: '10px 14px',
               maxWidth: '80%',
-              textAlign: 'left',
             }}
           >
             <FormattedText text={msg.content} />
@@ -792,7 +799,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 alignItems: 'center',
               }}
             >
-              {isLoading && (
+              {isLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div
                     style={{
@@ -805,6 +812,37 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   />
                   <span style={{ fontSize: 11, color: '#0F766E' }}>escribiendo...</span>
                 </div>
+              ) : (
+                <button
+                  onClick={() =>
+                    setProvider((p) => {
+                      const cycle: (AIProvider | 'backend')[] = ['deepseek', 'openai', 'groq', 'backend']
+                      return cycle[(cycle.indexOf(p) + 1) % cycle.length]
+                    })
+                  }
+                  title={
+                    provider === 'backend'
+                      ? 'Backend local — clic para cambiar'
+                      : `${AI_PROVIDERS[provider as AIProvider].label} — clic para cambiar`
+                  }
+                  style={{
+                    background:
+                      provider === 'backend'
+                        ? '#0F766E'
+                        : AI_PROVIDERS[provider as AIProvider].color,
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {provider === 'backend'
+                    ? '🏠 Local'
+                    : `${AI_PROVIDERS[provider as AIProvider].emoji} ${AI_PROVIDERS[provider as AIProvider].label}`}
+                </button>
               )}
             </div>
           </div>

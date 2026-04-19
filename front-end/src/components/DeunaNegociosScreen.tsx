@@ -266,8 +266,117 @@ function FingerprintModal({
   );
 }
 
+const COMERCIOS = [
+  { id: "COM-001", nombre: "Tienda Don Aurelio", emoji: "🛒" },
+  { id: "COM-002", nombre: "Fonda Don Jorge", emoji: "🍽️" },
+  { id: "COM-003", nombre: "Salón Belleza Total", emoji: "💇" },
+];
+
+function ComercioChevronSelector({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = COMERCIOS.find((c) => c.id === value) ?? COMERCIOS[0];
+
+  return (
+    <div style={{ position: "relative", marginBottom: 14 }}>
+      {/* Trigger row */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "11px 14px",
+          borderRadius: 12,
+          border: "1.5px solid #DDD6FE",
+          background: "#F5F3FF",
+          cursor: "pointer",
+          transition: "background 0.15s",
+        }}
+      >
+        <span style={{ fontSize: 18 }}>{selected.emoji}</span>
+        <span style={{ flex: 1, textAlign: "left", fontSize: 14, fontWeight: 600, color: "#3B0764" }}>
+          {selected.nombre}
+        </span>
+        {/* Chevron icon — rotates when open */}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#5B21B6"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s",
+            flexShrink: 0,
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            background: "#ffffff",
+            borderRadius: 12,
+            border: "1.5px solid #E5E7EB",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            overflow: "hidden",
+            zIndex: 50,
+          }}
+        >
+          {COMERCIOS.map((c, i) => (
+            <button
+              key={c.id}
+              onClick={() => { onChange(c.id); setOpen(false); }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 14px",
+                background: c.id === value ? "#F5F3FF" : "#ffffff",
+                border: "none",
+                borderBottom: i < COMERCIOS.length - 1 ? "1px solid #F3F4F6" : "none",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "background 0.1s",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{c.emoji}</span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: c.id === value ? 700 : 500, color: c.id === value ? "#5B21B6" : "#111827" }}>
+                {c.nombre}
+              </span>
+              {c.id === value && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface DeunaNegociosScreenProps {
-  onLogin?: (destination?: "home" | "mi-pana") => void;
+  onLogin?: (destination?: "home" | "mi-pana", comercioId?: string) => void;
 }
 
 export default function DeunaNegociosScreen({
@@ -276,6 +385,7 @@ export default function DeunaNegociosScreen({
   const [activeRole, setActiveRole] = useState<"admin" | "vendedor">("admin");
   const [hidden, setHidden] = useState(true);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [selectedComercio, setSelectedComercio] = useState("COM-001");
 
   const handleMipanaClick = () => {
     setShowFingerprintModal(true);
@@ -284,7 +394,7 @@ export default function DeunaNegociosScreen({
   const handleAuthenticate = () => {
     setShowFingerprintModal(false);
     if (onLogin) {
-      onLogin("mi-pana");
+      onLogin("mi-pana", selectedComercio);
     }
   };
 
@@ -638,9 +748,15 @@ export default function DeunaNegociosScreen({
             </button>
           </div>
 
+          {/* Selector de comercio — chevron */}
+          <ComercioChevronSelector
+            value={selectedComercio}
+            onChange={setSelectedComercio}
+          />
+
           {/* Ingresar button */}
           <button
-            onClick={() => onLogin?.("home")}
+            onClick={() => onLogin?.("home", selectedComercio)}
             style={{
               width: "100%",
               background: "#3B0764",

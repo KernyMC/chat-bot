@@ -338,10 +338,12 @@ function GestionarContent({
   balanceHidden,
   setBalanceHidden,
   onMiPanaClick,
+  onSaludClick,
 }: {
   balanceHidden: boolean
   setBalanceHidden: (v: boolean) => void
   onMiPanaClick: () => void
+  onSaludClick: () => void
 }) {
   return (
     <>
@@ -457,6 +459,53 @@ function GestionarContent({
         </button>
       </div>
 
+      {/* Mi salud financiera */}
+      <div style={{ padding: '20px 20px 0 20px' }}>
+        <button
+          onClick={onSaludClick}
+          style={{
+            width: '100%',
+            background: '#ffffff',
+            border: '1px solid #E5E7EB',
+            borderRadius: 16,
+            padding: '16px 18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: '#EDE9FE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2.5">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827' }}>
+              Mi salud financiera
+            </p>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6B7280' }}>
+              Tendencia, flujo, riesgos y oportunidades
+            </p>
+          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
       {/* Novedades Deuna Negocios */}
       <div style={{ padding: '20px 20px 20px 20px' }}>
         <h2 style={{ margin: '0 0 16px 0', fontSize: 17, fontWeight: 700, color: '#111827' }}>
@@ -476,10 +525,12 @@ function GestionarContent({
 }
 
 interface HomeScreenProps {
-  onNavigate?: (screen: 'home' | 'mi-caja' | 'mi-pana' | 'menu') => void
+  onNavigate?: (screen: 'home' | 'mi-caja' | 'mi-pana' | 'menu' | 'salud') => void
+  comercioId?: string
+  merchantName?: string
 }
 
-export default function HomeScreen({ onNavigate }: HomeScreenProps) {
+export default function HomeScreen({ onNavigate, comercioId = 'COM-001', merchantName = 'Mi Negocio' }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<'cobrar' | 'gestionar'>('gestionar')
   const [balanceHidden, setBalanceHidden] = useState(true)
   const [navTab, setNavTab] = useState<NavTab>('inicio')
@@ -499,7 +550,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     let ignore = false
 
     // Notificaciones de Mi Pana desde el backend (campana + swipe-down)
-    getSuggestions()
+    getSuggestions(comercioId)
       .then((suggestions) => {
         if (!ignore) {
           suggestions.forEach((s) => {
@@ -532,7 +583,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     if (tab === 'mi-caja' && onNavigate) {
       onNavigate('mi-caja')
     } else if (tab === 'mi-pana' && onNavigate) {
-      onNavigate('mi-pana')
+      onNavigate('mi-pana' as Parameters<typeof onNavigate>[0])
     } else if (tab === 'menu' && onNavigate) {
       onNavigate('menu')
     }
@@ -638,7 +689,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>Hola! Kevin</span>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>¡Hola! {merchantName.split(' ').slice(-1)[0]}</span>
                   <span
                     style={{
                       background: '#EDE9FE',
@@ -653,7 +704,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                   </span>
                 </div>
                 <p style={{ margin: 0, fontSize: 13, color: '#6B7280', marginTop: 2 }}>
-                  Vargas Paladines Kevin...
+                  {merchantName}
                 </p>
               </div>
             </div>
@@ -816,6 +867,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
               balanceHidden={balanceHidden}
               setBalanceHidden={setBalanceHidden}
               onMiPanaClick={() => onNavigate?.('mi-pana')}
+              onSaludClick={() => onNavigate?.('salud')}
             />
           )}
         </div>

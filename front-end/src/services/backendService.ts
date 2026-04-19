@@ -3,10 +3,16 @@ import type { PDFReportData } from '../utils/pdfGenerator'
 
 const BASE_URL = '/api'
 
+let _comercioId = 'COM-001'
+export const setComercioId = (id: string) => { _comercioId = id }
+export const getComercioId = () => _comercioId
+
 export interface BackendChatResponse {
   text: string
   chart: { chartType: ChartType; title: string; data: ChartDataPoint[] } | null
   pdfData: PDFReportData | null
+  scope?: string
+  productoUrl?: string
 }
 
 // ── Plotly JSON → Recharts-compatible format ──────────────────────────────────
@@ -131,8 +137,9 @@ function stripMarkdown(text: string): string {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export async function getSuggestions(): Promise<BackendSuggestion[]> {
-  const res = await fetch(`${BASE_URL}/suggestions`)
+export async function getSuggestions(comercioId?: string): Promise<BackendSuggestion[]> {
+  const id = comercioId ?? _comercioId
+  const res = await fetch(`${BASE_URL}/suggestions?comercio_id=${id}`)
   if (!res.ok) throw new Error(`Suggestions error (${res.status})`)
   const data = await res.json()
   return ((data.suggestions ?? []) as BackendSuggestion[]).map((s) => ({
@@ -141,11 +148,19 @@ export async function getSuggestions(): Promise<BackendSuggestion[]> {
   }))
 }
 
-export async function sendToBackend(message: string): Promise<BackendChatResponse> {
+export async function getWelcomeMessage(comercioId?: string): Promise<string> {
+  const id = comercioId ?? _comercioId
+  const res = await fetch(`${BASE_URL}/welcome?comercio_id=${id}`)
+  if (!res.ok) return '¡Oe, veci! Soy Mi Pana. Pregúntame lo que necesites.'
+  const data = await res.json()
+  return String(data.message ?? '')
+}
+
+export async function sendToBackend(message: string, comercioId?: string): Promise<BackendChatResponse> {
   const res = await fetch(`${BASE_URL}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, comercio_id: comercioId ?? _comercioId }),
   })
 
   if (!res.ok) {
@@ -158,16 +173,37 @@ export async function sendToBackend(message: string): Promise<BackendChatRespons
     text: String(data.response ?? ''),
     chart: data.chart ? plotlyToChart(data.chart as Record<string, unknown>) : null,
     pdfData: null,
+    scope: String(data.scope ?? ''),
+    productoUrl: data.producto_url ? String(data.producto_url) : undefined,
   }
 }
 
+export interface HealthMetric {
+  id: string
+  emoji: string
+  titulo: string
+  valor: string
+  detalle: string
+  consejo: string
+  status: 'green' | 'yellow' | 'red' | 'tip'
+}
+
+export async function getHealthMetrics(comercioId?: string): Promise<HealthMetric[]> {
+  const id = comercioId ?? _comercioId
+  const res = await fetch(`${BASE_URL}/health?comercio_id=${id}`)
+  if (!res.ok) throw new Error(`Health error (${res.status})`)
+  const data = await res.json()
+  return (data.metrics ?? []) as HealthMetric[]
+}
+
 export async function getReportFromBackend(
-  type: 'weekly' | 'monthly' | 'annual'
+  type: 'weekly' | 'monthly' | 'annual',
+  comercioId?: string,
 ): Promise<BackendChatResponse> {
   const res = await fetch(`${BASE_URL}/report`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type, comercio_id: comercioId ?? _comercioId }),
   })
 
   if (!res.ok) {

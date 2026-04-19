@@ -1,0 +1,81 @@
+P1: ¿Cuánto vendí esta semana?  
+
+R: No hay datos de ventas para esta semana. Te recomiendo revisar si han habido problemas con el registro o asegurarte de que todas las ventas estén siendo registradas correctamente.
+
+FALLA
+
+P2: ¿Cuál fue mi mejor día del mes?   
+
+R: Tu mejor día del mes fue el 2026-04-03, donde ganaste $127.86. No hay datos adicionales sobre las categorías de productos vendidas ese día. Podrías revisar qué hiciste diferente ese día para intentar repetirlo en otras fechas.
+
+P3: ¿Cuál es el peor día de la semana para vender? 
+
+R: El miércoles es el día en que menos vendes, con un total de $4871.05. Esto te puede dar una idea de cuándo necesitas ajustar tus estrategias o promociones para mejorar las ventas. Podrías intentar ofrecer alguna oferta especial ese día para atraer más clientes.
+
+P4: ¿Cuánto gané este mes comparado con el anterior? 
+
+R: Este mes ganaste $602.22, lo cual es un 17.66% más que el mes anterior donde ganaste $511.85. ¡Estás mejorando! Podrías seguir así y mirar qué está funcionando bien para repetirlo.
+
+P5: ¿Qué categoría me genera más ingresos? 
+
+R: La categoría que más te genera ingresos es Abarrotes con $16,287.83, seguido por Bebidas con $8,166.14. Lácteos también está bien arriba con $6,247.63. Mira si puedes traer más variedad o promocionar estos productos para seguir subiendo tus ventas en estas categorías.
+
+P6: ¿Qué clientes no han vuelto en el último mes? 
+
+R: Tienes varios clientes que no han vuelto en el último mes. Rosa Lopez Martinez, con un total gastado de $838.54 y su última visita fue hace 56 días; Rosa Martin Cevallos, con $718.10 y sin visitar desde hace 44 días; Luis Fernandez Fernandez, que gastó $619.52 y no ha vuelto en 37 días; Juan Zambrano Sanchez, con un total de $776.95 y ausente por 38 días; y Mateo Saltos Sanchez, quien gastó $909.97 y no ha venido desde hace 32 días.
+
+Te recomiendo que les hagas una llamada o envíes un mensaje para saber cómo están y recordarles de tu tienda.
+
+P7: ¿Cuántas transacciones tuve hoy?
+
+R: Hoy tuviste solo una transacción en tu comercio. No hay mucho movimiento hoy, ¿quizás podrías revisar qué está pasando? Tal vez sea buen momento para hacer un pequeño anuncio o promoción para atraer más clientes.
+
+P8: ¿Cuál fue mi día con más ventas en todo el historial? 
+
+R: El día con más ventas en todo tu historial fue el 28 de diciembre de 2025, donde lograste un total de $213.88. ¡Ese fue un gran día! Puedes considerar hacer promociones similares a las que hiciste ese día para repetir el éxito.
+
+P9: ¿Cuánto vendo en promedio por día?   
+
+R: Vendés en promedio $82 por día. Es un buen punto de partida para saber cuánto mover cada jornada. Podrías revisar qué productos se venden más y tratar de aumentar su presencia en la tienda.
+
+P10: ¿Quiénes son mis 5 clientes más frecuentes?  
+
+R: Tus 5 clientes más frecuentes son Diego Gomez Lopez (61 visitas, $1128.24 gastados), Daniel Noboa Martinez (58 visitas, $994.75 gastados), Mateo Saltos Sanchez (52 visitas, $909.97 gastados), Rosa Rodriguez Chavez (51 visitas, $921.15 gastados) y Ana Velasco Zambrano (50 visitas, $882.08 gastados). Diego y Daniel han vuelto recientemente, pero Mateo no ha venido en 32 días. Quizás le hagas una llamada o mensaje para ver cómo está.
+
+P11: ¿Quién me visita más y qué es lo que más compra?  
+
+R: ¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?
+
+P11.1: Cliente
+
+R: ¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?
+
+FALLA
+
+P12: ¿Cuánto le pagué al de la Pilsener en enero de 2026?  
+
+R: Según los pagos a Cervecería Nacional (Pilsener), le diste $497.89 en enero de 2026. No hay más detalles sobre otros meses o proveedores en esta consulta.
+
+Revisa si este monto se ajusta a lo que esperabas pagar por las cajas de Pilsener ese mes y ajusta tu presupuesto si es necesario.
+
+P13: ¿En qué hora del día vendo más en diciembre?  
+
+R: No hay datos sobre las horas en las que vendes más en diciembre. Te recomiendo revisar tus registros o sistema de ventas para asegurarte de que estén capturando esta información correctamente. Una vez tengas los datos, podrás identificar fácilmente cuándo es el mejor momento para tener más atención en la tienda.
+
+P14: ¿Quién me visitó más en enero? 
+
+R: ¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?
+
+P14.1: ¿Quién me visitó más en enero de proveedores?
+
+R: No hay datos de visitas de proveedores en enero. Te sugiero revisar si hubo algún cambio en tus registros o contactar a Deuna para verificar la información. Puedes empezar por llamar a tus proveedores habituales para confirmar sus últimas visitas.
+
+P14.2: ¿Quién me visitó más en enero de clientes?
+
+R: No hay datos de clientes que te hayan visitado en enero. Te sugiero revisar si hubo algún problema con el registro o simplemente fue un mes tranquilo. Puedes hacer una promoción para animar la frecuencia de visitas.
+
+P15: ¿Cuánto me compró Diego Gomez Lopez y hace cuánto no viene? 
+
+R: Diego Gomez Lopez te ha comprado por un total de $1128.24 y hace 4 días que no viene a tu tienda. 
+
+Podrías intentar contactarlo para ver qué tal le fue con lo que compró o si necesita algo nuevo.
