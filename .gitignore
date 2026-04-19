@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 *.pyo
 *.py[cod]
+front-end/.env
