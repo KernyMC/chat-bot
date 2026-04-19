@@ -204,6 +204,13 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
             totalAmount: backendRes.pdfData.totalAmount,
           })
         } else {
+          newMsgs.push({
+            id: makeId(),
+            role: 'assistant',
+            type: 'text',
+            timestamp: Date.now(),
+            content: backendRes.text || 'No pude preparar una respuesta.',
+          })
           if (backendRes.chart) {
             newMsgs.push({
               id: makeId(),
@@ -216,13 +223,6 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               data: backendRes.chart.data,
             })
           }
-          newMsgs.push({
-            id: makeId(),
-            role: 'assistant',
-            type: 'text',
-            timestamp: Date.now(),
-            content: backendRes.text || 'No pude preparar una respuesta.',
-          })
         }
 
         setUiMessages((prev) => [...prev.filter((m) => m.type !== 'loading'), ...newMsgs])
@@ -329,7 +329,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 content: followUp,
               }
             : null
-          return [...withoutLoader, ...newUiMsgs, ...(followUpMsg ? [followUpMsg] : [])]
+          return [...withoutLoader, ...(followUpMsg ? [followUpMsg] : []), ...newUiMsgs]
         })
       } else {
         const textContent = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
