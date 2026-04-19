@@ -31,6 +31,11 @@ interface MiPanaScreenProps {
 
 const CHART_COLORS = ['#5B21B6', '#0F766E', '#F59E0B', '#EF4444', '#3B82F6']
 
+const PURPLE_GRADIENT = [
+  '#3B0764', '#4C1D95', '#5B21B6', '#6D28D9', '#7C3AED',
+  '#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE',
+]
+
 const QUICK_ACTIONS = [
   { label: '📊 Mis ventas', message: '¿Cómo van mis ventas este mes?' },
   { label: '📅 Reporte semanal', message: 'Dame el reporte de ventas de esta semana' },
@@ -469,7 +474,11 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                     formatter={(value) => formatTooltipCurrency(value, 'Ventas')}
                     contentStyle={{ fontSize: 11 }}
                   />
-                  <Bar dataKey="value" fill="#5B21B6" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                    {msg.data.map((_, i) => (
+                      <Cell key={i} fill={PURPLE_GRADIENT[i % PURPLE_GRADIENT.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
