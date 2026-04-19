@@ -13,7 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
-import mipanaOutlineIcon from '../assets/mipanaoutline.svg'
+import logomipanaIcon from '../assets/logomipana.png'
 import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
   callAI,
@@ -92,17 +92,18 @@ function BotAvatar() {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
+        overflow: 'hidden',
       }}
     >
       <img
-        src={mipanaOutlineIcon}
+        src={logomipanaIcon}
         alt="Mi Pana"
         style={{
-          width: 22,
-          height: 22,
-          objectFit: 'contain',
-          filter:
-            'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%) drop-shadow(0.5px 0 0 #5B21B6) drop-shadow(-0.5px 0 0 #5B21B6)',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          transform: 'scale(1.25)',
+          display: 'block',
         }}
       />
     </div>
@@ -721,17 +722,18 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  overflow: 'hidden',
                 }}
               >
                 <img
-                  src={mipanaOutlineIcon}
+                  src={logomipanaIcon}
                   alt="Mi Pana"
                   style={{
-                    width: 20,
-                    height: 20,
-                    objectFit: 'contain',
-                    filter:
-                      'brightness(0) saturate(100%) invert(19%) sepia(79%) saturate(2659%) hue-rotate(247deg) brightness(90%) contrast(95%) drop-shadow(0.5px 0 0 #5B21B6) drop-shadow(-0.5px 0 0 #5B21B6)',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scale(1.15)',
+                    display: 'block',
                   }}
                 />
               </div>
