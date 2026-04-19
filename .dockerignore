@@ -1,6 +1,7 @@
-# Exclude everything except front-end
+# Exclude everything except front-end and .env
 *
 !front-end/
+!.env
 
 # Exclude from front-end
 front-end/node_modules
