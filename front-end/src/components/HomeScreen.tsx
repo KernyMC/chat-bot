@@ -2,6 +2,7 @@ import { createElement, useState, useEffect } from 'react'
 import BottomNavBar, { type NavTab } from './BottomNavBar'
 import NotificationDropdown, { useNotifications, useSwipeDown } from './NotificationDropdown'
 import AppNotifications, { usePaymentNotifications, useMiPanaNotifications } from './AppNotifications'
+import { getSuggestions } from '../services/backendService'
 import qrCodeIcon from '../assets/qrcode.svg'
 import headphonesIcon from '../assets/audifonos.svg'
 import bellIcon from '../assets/campana.svg'
@@ -495,48 +496,34 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
 
   // Agregar notificaciones de ejemplo al montar
   useEffect(() => {
-    // Notificaciones nativas del teléfono (Mi Pana) - aparecen con swipe down
-    addNotification(
-      'Mi Pana',
-      'Hola! Tus ventas de hoy van muy bien. Ya llevas $245.50 en el dia.',
-      'growth'
-    )
-    setTimeout(() => {
-      addNotification(
-        'Mi Pana',
-        'Recuerda revisar tu reporte semanal. Tienes un crecimiento del 15% respecto a la semana pasada.',
-        'tip'
-      )
-    }, 500)
+    let ignore = false
 
-    // Notificaciones de Mi Pana para la app (aparecen en la campana)
-    addMiPanaNotification(
-      'Crecimiento semanal',
-      'Tus ventas crecieron un 15% esta semana. Sigue asi!',
-      'growth'
-    )
-    setTimeout(() => {
-      addMiPanaNotification(
-        'Consejo del dia',
-        'Activa los recordatorios de pago para tus clientes frecuentes.',
-        'tip'
-      )
-    }, 100)
-    setTimeout(() => {
-      addMiPanaNotification(
-        'Alerta de inventario',
-        'Tu producto mas vendido esta por agotarse.',
-        'alert'
-      )
-    }, 200)
+    // Notificaciones de Mi Pana desde el backend (campana + swipe-down)
+    getSuggestions()
+      .then((suggestions) => {
+        if (!ignore) {
+          suggestions.forEach((s) => {
+            addNotification(s.title, s.message, s.icon)
+            addMiPanaNotification(s.title, s.message, s.icon)
+          })
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          addNotification('Mi Pana', 'Conecta el backend para ver sugerencias reales.', 'tip')
+          addMiPanaNotification('Crecimiento semanal', 'Conecta el backend para ver sugerencias reales.', 'tip')
+        }
+      })
 
     // Notificaciones de pagos de la app
     addPaymentNotification(7.15, 'Jimmy Wladimir Ango Llulluna', '2549')
-    setTimeout(() => addPaymentNotification(10.00, 'Adriana Elizabeth Alvarez Carrasco', '3337'), 100)
-    setTimeout(() => addPaymentNotification(4.50, 'Karen Anahi Vasco Usina', '2365'), 200)
-    setTimeout(() => addPaymentNotification(14.50, 'Monica Gabriela Vasconez Acuna', '9300'), 300)
-    setTimeout(() => addPaymentNotification(2.75, 'Tania Magaly Suarez Barreiro', '2000'), 400)
-    setTimeout(() => addPaymentNotification(3.15, 'Fernando Jose Zhapa Zhapa', '2008'), 500)
+    setTimeout(() => { if (!ignore) addPaymentNotification(10.00, 'Adriana Elizabeth Alvarez Carrasco', '3337') }, 100)
+    setTimeout(() => { if (!ignore) addPaymentNotification(4.50, 'Karen Anahi Vasco Usina', '2365') }, 200)
+    setTimeout(() => { if (!ignore) addPaymentNotification(14.50, 'Monica Gabriela Vasconez Acuna', '9300') }, 300)
+    setTimeout(() => { if (!ignore) addPaymentNotification(2.75, 'Tania Magaly Suarez Barreiro', '2000') }, 400)
+    setTimeout(() => { if (!ignore) addPaymentNotification(3.15, 'Fernando Jose Zhapa Zhapa', '2008') }, 500)
+
+    return () => { ignore = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
