@@ -97,7 +97,7 @@ export function getSalesContext(comercioId = 'COM-001'): string {
   })
 
   return `
-DATOS REALES DEL NEGOCIO (${comercioId}, año 2023):
+DATOS REALES DEL NEGOCIO (${comercioId}, año 2025):
 
 RESUMEN ANUAL:
 - Total ingresos: ${fmt(totalIngresos)} (${ingresos.length} transacciones)
@@ -122,7 +122,7 @@ ${Object.entries(byExpense)
     .map(([k, v]) => `${k}: ${fmt(v)}`)
     .join('\n')}
 
-DICIEMBRE 2023 POR SEMANA:
+DICIEMBRE 2025 POR SEMANA:
 ${Object.entries(byWeek).map(([k, v]) => `${k}: ${fmt(v)}`).join('\n')}
 `.trim()
 }
