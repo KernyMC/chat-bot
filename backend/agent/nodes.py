@@ -10,6 +10,9 @@ from typing import Any, Literal, TypedDict
 from agent.prompts import (
     CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE,
     DATASET_CONTEXT,
+    DEUNA_PRODUCTOS,
+    FINANCIAL_ADVISOR_PROMPT_TEMPLATE,
+    FINANCIAL_KEYWORDS,
     SQL_GENERATOR_PROMPT_TEMPLATE,
     SYNTHESIZER_PROMPT_TEMPLATE,
     SYSTEM_PROMPT,
@@ -42,13 +45,16 @@ ORDER BY ingreso_total DESC
 LIMIT 3
 """
 
-Scope = Literal["en_scope", "fuera_scope", "ambiguous"]
+Scope = Literal["en_scope", "en_scope_financiero", "fuera_scope", "ambiguous"]
 
 
 class AgentState(TypedDict, total=False):
     question: str
     comercio_id: str | None
+    default_comercio_id: str | None
     scope: Scope
+    requires_financial_advice: bool
+    producto_url: str | None
     view_name: str | None
     params: dict[str, Any]
     requires_product_disclaimer: bool
@@ -155,8 +161,29 @@ async def classify_and_map_node(state: AgentState) -> AgentState:
         }
 
     scope = parsed.get("scope", "fuera_scope")
-    if scope not in {"en_scope", "fuera_scope", "ambiguous"}:
+    if scope not in {"en_scope", "en_scope_financiero", "fuera_scope", "ambiguous"}:
         scope = "fuera_scope"
+
+    # Override determinístico: si el LLM no detectó la pregunta financiera pero las palabras clave sí
+    if scope == "fuera_scope":
+        q_lower = question.lower()
+        if any(kw in q_lower for kw in FINANCIAL_KEYWORDS):
+            scope = "en_scope_financiero"
+
+    if scope == "en_scope_financiero":
+        comercio_id = _normalize_nullable(parsed.get("params", {}).get("comercio_id"))
+        if comercio_id is None:
+            comercio_id = state.get("default_comercio_id") or DEMO_COMERCIO_ID
+        return {
+            **state,
+            "scope": "en_scope_financiero",
+            "view_name": "ventas_periodo",
+            "params": {"comercio_id": comercio_id},
+            "comercio_id": comercio_id,
+            "requires_financial_advice": True,
+            "requires_product_disclaimer": False,
+            "error": None,
+        }
 
     if scope == "ambiguous":
         return {
@@ -183,9 +210,9 @@ async def classify_and_map_node(state: AgentState) -> AgentState:
     params = _safe_params(parsed.get("params"))
     comercio_id = _normalize_nullable(params.get("comercio_id"))
 
-    # Demo: si no se especifica comercio, usar COM-001 por defecto
+    # Usar el comercio del perfil activo (chat profile) como fallback
     if comercio_id is None:
-        comercio_id = DEMO_COMERCIO_ID
+        comercio_id = state.get("default_comercio_id") or DEMO_COMERCIO_ID
 
     _temporal_hint = " ".join([
         str(params.get("periodo") or ""),
@@ -371,6 +398,48 @@ async def synthesizer_node(state: AgentState) -> AgentState:
     )
     response = await _call_llm(prompt, temperature=0.3, max_tokens=300)
     return {**state, "response": response.strip()}
+
+
+async def financial_advisor_node(state: AgentState) -> AgentState:
+    """Nodo financiero: combina datos reales de ventas con producto DeUna × Banco Pichincha."""
+    if not state.get("requires_financial_advice"):
+        return state
+
+    comercio_id = state.get("comercio_id") or DEMO_COMERCIO_ID
+    producto = DEUNA_PRODUCTOS.get(comercio_id, DEUNA_PRODUCTOS["COM-001"])
+
+    # Formatear los datos reales de ventas como contexto legible
+    sql_result = state.get("sql_result", [])
+    if sql_result:
+        ventas_lines = []
+        for row in sql_result[-6:]:   # últimos 6 meses
+            mes = row.get("mes") or row.get("semana") or ""
+            total = row.get("total", 0)
+            ntx = row.get("num_transacciones", 0)
+            ventas_lines.append(f"  {str(mes)[:7]}: ${total:.2f} ({int(ntx)} cobros)")
+        ventas_data = "\n".join(ventas_lines) if ventas_lines else "Sin datos de ventas disponibles."
+    else:
+        ventas_data = "Sin datos de ventas disponibles."
+
+    prompt = FINANCIAL_ADVISOR_PROMPT_TEMPLATE.format(
+        ventas_data=ventas_data,
+        producto_nombre=producto["nombre"],
+        producto_monto_explicado=producto["monto_explicado"],
+        producto_plazo=producto["plazo"],
+        producto_tasa=producto["tasa"],
+        producto_por_que=producto["por_que_te_conviene"],
+        producto_uso=producto["uso_sugerido"],
+        producto_accion=producto["accion"],
+        producto_requisito=producto["requisito_clave"],
+        question=state["question"],
+    )
+
+    response = await _call_llm(prompt, temperature=0.3, max_tokens=350)
+    return {
+        **state,
+        "response": response.strip(),
+        "producto_url": producto.get("url", ""),
+    }
 
 
 def validate_sql(sql: str, view_name: str | None) -> tuple[bool, str | None]:

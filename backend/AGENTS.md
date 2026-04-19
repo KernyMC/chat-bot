@@ -111,12 +111,15 @@ realista y no es lo que pide el reto.
 
 ```
 Archivo:       data/transacciones.csv
-Fuente:        CSV sintético generado por scripts/generar_dataset.py
-Comercios:     3 (COM-001, COM-002, COM-003) — modelo: tienda de barrio ecuatoriana
-Periodo:       2025-01-01 a 2026-04-18 (fecha de corte = hoy en la demo)
-Transacciones: ~2650 por comercio (8020 total)
-Clientes:      50 únicos con cuenta Deuna, identificados por CL-XXXX + nombre
-El 2026-04-18 tiene SOLO 3 transacciones de la mañana (día en curso) → alerta garantizada
+Fuente:        CSV sintético generado por scripts/generar_dataset.py (seed=42, reproducible)
+Comercios:     3 perfiles diferenciados con personalidad propia:
+               COM-001 "Tienda Don Aurelio"  → tienda barrio, $49,822/año, ticket $17.86, pico sábado
+               COM-002 "Fonda Don Jorge"     → restaurante, $25,773/año, ticket $3.44, bimodal 7-9am/12-2pm
+               COM-003 "Salón Belleza Total" → salón belleza, $55,580/año, ticket $25.42, pico viernes-sábado
+Periodo:       2025-01-01 a 2026-04-18 (16 meses, fecha de corte = hoy en la demo)
+Transacciones: 13,399 total (COM-001: 2,789 | COM-002: 7,491 | COM-003: 2,186 + egresos)
+Clientes:      50 únicos con cuenta Deuna por comercio, identificados por CL-XXXX + nombre
+El 2026-04-18 tiene SOLO 3 transacciones de la mañana (día en curso) → alerta caída garantizada
 Restricción:   El agente SOLO puede usar este dataset, nada externo
 ```
 
@@ -203,38 +206,44 @@ al inicio de cada invocación del grafo. Los nodos NUNCA llaman `get_connection(
 
 ---
 
-## Los 6 nodos del grafo LangGraph
+## Los nodos del grafo LangGraph
+
+Nodos 1+2 fusionados en `classify_and_map_node` para reducir latencia (~1-2s menos).
 
 ```python
-# Nodo 1: Clasificador
-# Input:  pregunta del usuario (string)
-# Output: "en_scope" | "fuera_scope"
-# Lógica: El LLM evalúa si la pregunta puede responderse con el dataset
-
-# Nodo 2: Semántico
-# Input:  pregunta del usuario
-# Output: nombre de vista DuckDB + parámetros relevantes
-# Lógica: Mapeo intención → vista pre-calculada
+# Nodo 1+2: Clasificador+Semántico (fusionados)
+# Input:  pregunta + historial de conversación
+# Output: scope ("en_scope"|"en_scope_financiero"|"ambiguous"|"fuera_scope")
+#         + vista DuckDB + parámetros
+# Lógica: LLM evalúa intención y mapea a vista; overrides determinísticos en Python
+# Override: preguntas financieras → en_scope_financiero + ventas_periodo (sin importar LLM)
+# Override: frecuencia_clientes + mes/año → frecuencia_clientes_mensual
+# Override: gastos_proveedores + mes → gastos_proveedores_mensual
 
 # Nodo 3: Generador SQL
-# Input:  vista objetivo + parámetros + schema de la vista
+# Input:  vista objetivo + parámetros + schema
 # Output: query SQL válido para DuckDB
 # Modelo: qwen2.5:32b, temperature=0, max_tokens=512
 
-# Nodo 4: Validador
+# Nodo 4: Validador (estático, sin LLM)
 # Input:  query SQL generado
-# Output: "valido" | "invalido" + razón
-# Lógica: sql_db_query_checker, chequeo estático antes de ejecutar
+# Output: válido | inválido + razón
+# Lógica: chequeo estático: solo SELECT/WITH, solo vistas permitidas, no tabla cruda
 
 # Nodo 5: Ejecutor
 # Input:  query SQL validado
-# Output: resultado tabular (lista de dicts) | error
-# Lógica: duckdb.execute(query), si error → vuelve al Nodo 3 (max 3 intentos)
+# Output: resultado tabular (lista de dicts) | error → retry al Nodo 3 (max 3 intentos)
 
-# Nodo 6: Sintetizador
+# Nodo 6a: Sintetizador (scope en_scope)
 # Input:  resultado tabular + pregunta original
-# Output: respuesta en español neutro + figura Plotly si aplica
+# Output: respuesta en español neutro + Plotly si aplica
 # Modelo: qwen2.5:32b, temperature=0.3, max_tokens=300
+
+# Nodo 6b: Asesor Financiero (scope en_scope_financiero)
+# Input:  resultado ventas_periodo (datos reales) + DEUNA_PRODUCTOS[comercio_id]
+# Output: recomendación personalizada de crédito con datos reales del comercio
+# Producto: "Crédito para Negocio y Emprendedores" Banco Pichincha ($500-$20k, 48 meses)
+# Nota: "Impulsa tu negocio" y "Crédito Mujer" requieren >$100k/año — NO aplican
 ```
 
 ---
@@ -554,222 +563,33 @@ Cuando recibas una tarea de este flujo:
 
 ## Estado de implementación
 
-Actualiza esta sección al terminar cada archivo.
-
 ```
 agent/config.py             ✅ done  ← DEMO_COMERCIO_ID, fuente única
-agent/semantic_layer.py     ✅ done  ← 10 vistas (incluye gastos_proveedores_mensual), ref 2026-04-18
-agent/prompts.py            ✅ done  ← DATASET_END_DATE=2026-04-18, VIEW_SELECTION_GUIDE actualizado
-agent/nodes.py              ✅ done  ← Nodos 1+2 fusionados en classify_and_map_node
-agent/graph.py              ✅ done
-alerts/proactive.py         ✅ done  ← mensaje empático con cifras reales
-utils/charts.py             ✅ done
-app.py                      ✅ done  ← 5 mensajes bienvenida rotatorios con DuckDB real
-data/transacciones.csv      ✅ done  ← 2025-01-01→2026-04-18, 8020 tx, hoy=3 tx mañana
+agent/semantic_layer.py     ✅ done  ← 11 vistas, ref 2026-04-18
+agent/prompts.py            ✅ done  ← DEUNA_PRODUCTOS, FINANCIAL_ADVISOR_PROMPT, VIEW_SELECTION_GUIDE
+agent/nodes.py              ✅ done  ← Nodos 1+2 fusionados + financial_advisor_node; overrides determinísticos
+agent/graph.py              ✅ done  ← 7 nodos, routing en_scope_financiero → financial_advisor → END
+alerts/proactive.py         ✅ done  ← tick1=caída ventas, tick2=calificación crédito con link markdown
+utils/charts.py             ✅ done  ← eje categorical, labels español, frecuencia_clientes_mensual
+app.py                      ✅ done  ← Chat Profiles, bienvenidas rotatorias, link crédito en respuesta financiera
+data/transacciones.csv      ✅ done  ← 13,399 tx, 3 perfiles distintos, 16 meses, hoy=3 tx mañana
 ```
 
-*Notas de implementación:* (agrega aquí decisiones no obvias, bugs encontrados, o cambios al schema)
-- `agent/semantic_layer.py`: se implementó DuckDB en memoria con `get_connection()`, carga tipada desde `data/transacciones.csv` y las 8 vistas semánticas requeridas. `get_connection()` entrega una conexión fresca para guardarla por sesión en Chainlit; los nodos no deben llamarlo directamente. No se cambió el schema ni se agregó vista de productos. La verificación de ejecución queda pendiente en este entorno local porque falta instalar el paquete Python `duckdb`; `python3 -m compileall agent/semantic_layer.py` sí pasó.
-- `agent/prompts.py`: se implementaron prompts declarativos para clasificador, mapeo semántico, generación SQL, validación y síntesis. Se incluyó contexto compacto de las 8 vistas permitidas y una regla explícita para preguntas de productos: no inventar ítems, responder con categorías como alternativa.
-- `agent/nodes.py`: se implementaron los 6 nodos async y `AgentState` con la estructura requerida. El ejecutor usa exclusivamente `state["con"]`; ningún nodo crea conexiones DuckDB. El validador bloquea escritura, lectura de `transacciones`/CSV y vistas distintas a la seleccionada.
-- `agent/graph.py`: se conectó el grafo LangGraph con el loop de auto-corrección requerido: `executor` llama a `should_retry`; si hay error y `retry_count < 3`, vuelve a `sql_generator`, si no pasa a `synthesizer`. El grafo se compila bajo demanda para no requerir LangGraph al importar el módulo.
-- `alerts/proactive.py`: se implementó el monitor async de caída de ventas usando solo la vista `ventas_diarias`. Para la demo histórica, si no se pasa `fecha_referencia`, compara la última fecha disponible del dataset contra la mediana histórica del mismo día de semana; no se agregaron vistas extra como `ventas_hoy` o `mediana_dia_semana`.
-- `utils/charts.py`: se implementaron helpers Plotly desacoplados de Chainlit para generar figuras según la vista semántica (`ventas_diarias`, `ventas_periodo`, `categorias_populares`, `patrones_temporales`, proveedores y clientes). `app.py` debe envolver estas figuras con `cl.Plotly` cuando existan.
-- `app.py`: se implementó el entry point Chainlit. En `on_chat_start` crea una conexión DuckDB fresca con `get_connection()`, la guarda en `cl.user_session`, inicia la alerta de demo con `intervalo_segundos=10` y `fecha_referencia="2023-09-21"`, y guarda la `Task` en sesión. En `on_message` recupera `con`, llama `run_agent(question, con)`, envía `state["response"]` y adjunta `cl.Plotly` cuando `chart_for_result(..., params=state["params"])` devuelve figura.
+**Decisiones de diseño no obvias:**
+- DuckDB `ILIKE` NO normaliza tildes → nombres de clientes/proveedores se buscan por palabras sueltas sin acento (`ILIKE '%Garcia%' AND ILIKE '%Gomez%'`)
+- `frecuencia_clientes` no tiene columna de fecha → override Python redirige a `frecuencia_clientes_mensual` cuando hay año/mes en la pregunta
+- Eje X de Plotly interpreta fechas ISO como axis de fecha continua → bars invisibles con pocos puntos. Fix: labels en español (`Ene-25`, `14-Abr`) + `fig.update_xaxes(type="category")`
+- "Impulsa tu negocio" y "Crédito Mujer" requieren ingresos >$100k/año → los 3 comercios NO califican. Producto correcto: "Crédito para Negocio y Emprendedores" ($500-$20k, 48 meses, 100% digital)
+- `cl.Action` con `url` en Chainlit requiere callback registrado pero no abre el link automáticamente → usar link markdown `[texto](url)` directamente en el mensaje
 
 ---
 
----
+## ⏳ Pendiente antes del pitch
 
-## PENDIENTES — funcionalidades identificadas, no implementadas
-
-### ✅ Consulta secundaria para preguntas compuestas (cliente + qué compra)
-
-**Problema detectado en pruebas:** Cuando el usuario pregunta "¿Quién me visita más y qué compra?",
-el agente consulta `frecuencia_clientes` correctamente pero luego dice "no tengo qué compra,
-pregúntame por categorías" — sin dar la categoría. La pregunta de clarificación queda incompleta.
-
-**Diseño acordado (opción simple, sin cambiar arquitectura del grafo):**
-
-El `executor_node` detecta `requires_product_disclaimer = True` + ejecución SQL exitosa.
-En ese caso corre una **segunda consulta hardcodeada** contra `categorias_populares` y la guarda
-en `sql_result_secondary`. El sintetizador recibe ambos resultados y fusiona la respuesta.
-
-**La consulta secundaria es fija (no generada por LLM):**
-```python
-SECONDARY_SQL_CATEGORIAS = """
-SELECT categoria, num_transacciones, ingreso_total, ticket_promedio
-FROM categorias_populares
-WHERE comercio_id = ?
-ORDER BY ingreso_total DESC
-LIMIT 3
-"""
-# Parámetro: state["comercio_id"] (o sin filtro si es None)
-```
-
-**Cambios requeridos — exactamente 2 archivos:**
-
-**`agent/nodes.py`:**
-1. `AgentState`: añadir `sql_result_secondary: list[dict[str, Any]]` (default `[]`)
-2. `executor_node`: al final, si `state["sql_result"]` no está vacío Y `state.get("requires_product_disclaimer")` es True:
-   - Ejecutar `SECONDARY_SQL_CATEGORIAS` con `state["comercio_id"]` como parámetro
-   - Si `comercio_id` es None, ejecutar sin filtro WHERE
-   - Guardar resultado en `state["sql_result_secondary"]`
-   - Si falla la consulta secundaria: ignorar el error (no bloquear la respuesta principal)
-
-**`agent/prompts.py`:**
-3. `SYNTHESIZER_PROMPT_TEMPLATE`: añadir campo `resultado_secundario` al final del template
-4. Añadir regla: "Si `resultado_secundario` tiene datos Y `requires_product_disclaimer` es True,
-   úsalos como la respuesta a la pregunta de categorías. Ejemplo de respuesta fusionada:
-   'Tu cliente más frecuente es Diego (61 visitas, $1128.24). No tengo el detalle exacto de
-   lo que compra, pero en tu tienda lo que más mueve plata es {categoria_top} con ${ingreso_top}.
-   Probablemente Diego también elige eso.'"
-
-**`agent/nodes.py` — también actualizar `synthesizer_node`:**
-5. Pasar `sql_result_secondary` al template como `resultado_secundario=json.dumps(...)`
-
-**Restricciones importantes:**
-- La consulta secundaria NO pasa por `sql_generator` ni `validator` — es código de confianza
-- Si `comercio_id` es None, ejecutar: `SELECT categoria... FROM categorias_populares ORDER BY ingreso_total DESC LIMIT 3` (sin WHERE)
-- Latencia adicional esperada: <0.1s (DuckDB en memoria, sin LLM)
-- `sql_result_secondary` debe estar en `AgentState` con `total=False` para no romper LangGraph
-
-**Caso de prueba para validar:**
-- P: "¿Cuál es el cliente que más me visita, y qué es lo que más compra?"
-- R esperada: nombre del top cliente + visitas + total gastado + disclaimer honesto + top 3 categorías del comercio como aproximación
-
----
-
-### ✅ TAREA A — 3 fixes críticos en agent/prompts.py (un solo archivo)
-
-Detectados en pruebas con las 15 preguntas. Solo tocar `agent/prompts.py`.
-
-**Fix 1 — CURRENT_DATE prohibido (rompe P1 "¿cuánto vendí esta semana?" y P4)**
-
-En `SQL_GENERATOR_PROMPT_TEMPLATE`, añadir después de "Devuelve SOLO SQL":
-```
-- NUNCA uses CURRENT_DATE, NOW() ni funciones de fecha del sistema operativo.
-  La fecha de referencia fija del dataset es DATE '2026-04-18'.
-  Traduce así:
-    "hoy"          → DATE '2026-04-18'
-    "esta semana"  → semana que contiene DATE '2026-04-18'
-                     → DATE_TRUNC('week', DATE '2026-04-18') = DATE '2026-04-14'
-    "este mes"     → DATE_TRUNC('month', DATE '2026-04-18') = DATE '2026-04-01'
-    "mes pasado"   → DATE_TRUNC('month', DATE '2026-03-01')
-```
-
-**Fix 2 — Clasificador demasiado agresivo con "ambiguous" (rompe P11)**
-
-En `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`, en la definición de `ambiguous`, añadir:
-```
-- EXCEPCIÓN: si la pregunta incluye verbos de acción del comprador
-  (compra, comprar, compró, gasta, gastó, paga, pagó, consume), NO es ambiguous
-  aunque use "visita" o "vino" — clasificar como en_scope con vista frecuencia_clientes.
-  EJEMPLO: "¿quién me visita más y qué compra?" → en_scope, frecuencia_clientes.
-  EJEMPLO: "¿quién vino más y cuánto gastó?" → en_scope, frecuencia_clientes.
-```
-
-**Fix 3 — Mes sin año (rompe P13 "¿en qué hora vendo más en diciembre?")**
-
-En `SQL_GENERATOR_PROMPT_TEMPLATE`, añadir:
-```
-- Si la pregunta menciona un mes sin año explícito, deduce el año del dataset:
-    mayo–diciembre → siempre 2025 (solo existen en ese año en el dataset)
-    enero–abril    → usa 2026 si el contexto sugiere reciente, 2025 si no
-  Ejemplo: "diciembre" → DATE '2025-12-01'; "enero pasado" → DATE '2026-01-01'
-```
-
----
-
-### ✅ TAREA B — Historial de conversación (Opción B)
-
-**Problema:** El agente procesa cada mensaje de forma aislada. Cuando el clasificador
-devuelve `scope = "ambiguous"` y el usuario responde "Cliente", el siguiente turno
-no tiene contexto de cuál era la pregunta original.
-
-**Diseño — 4 archivos:**
-
-**`agent/nodes.py`:**
-1. Añadir a `AgentState`:
-```python
-conversation_history: list[dict[str, str]]
-# Formato: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-# Máximo 6 entradas (3 turnos completos)
-```
-
-**`agent/graph.py`:**
-2. En `create_initial_state`: añadir `"conversation_history": []`
-3. `run_agent` debe aceptar `conversation_history: list[dict] = []` como parámetro
-   e inyectarlo al estado inicial.
-
-**`agent/prompts.py`:**
-4. En `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`, añadir ANTES de "Pregunta: {question}":
-```
-Historial reciente (últimos turnos — úsalo para entender preguntas de seguimiento):
-{conversation_history}
-```
-5. Añadir regla al clasificador:
-```
-- Si la pregunta actual es una respuesta corta a una clarificación previa
-  (ej. "Cliente", "Proveedor", "sí", "el de clientes"), reconstruye la intención
-  combinando el historial con la respuesta actual.
-  EJEMPLO: historial muestra "¿quién me visitó más en enero?" → ambiguous →
-  "¿Me puedes aclarar si hablamos de cliente o proveedor?" → usuario responde "Cliente"
-  → clasificar como en_scope, vista frecuencia_clientes, params.periodo = "2026-01"
-```
-
-**`app.py`:**
-6. En `on_message`, ANTES de llamar `run_agent`:
-   - Recuperar `history = cl.user_session.get("conversation_history", [])`
-   - Pasar `history` a `run_agent`
-7. DESPUÉS de obtener `state["response"]`:
-   - Añadir `{"role": "user", "content": question}` al historial
-   - Añadir `{"role": "assistant", "content": state["response"]}` al historial
-   - Guardar solo los últimos 6 elementos: `history[-6:]`
-   - Actualizar en sesión: `cl.user_session.set("conversation_history", history)`
-8. En `on_chat_start`: inicializar `cl.user_session.set("conversation_history", [])`
-
-**Formato del historial en el prompt** (para el template):
-```python
-# En build_history_str(history: list[dict]) → str:
-# Si history vacío → ""
-# Si hay entradas → formatear como:
-# "Usuario: {content}\nAsistente: {content}\n..."
-# Truncar cada mensaje a 200 caracteres para no explotar el contexto
-```
-
-**Casos de prueba para validar:**
-- P11 → P11.1: "¿quién me visita más y qué compra?" → NO debe ser ambiguous
-- P14 → P14.1: "¿quién me visitó más en enero?" → ambiguous → usuario: "de proveedores" → debe responder con datos de gastos_proveedores_mensual para enero
-- P14 → P14.2: misma pregunta → usuario: "de clientes" → frecuencia_clientes (nota: no hay filtro por mes en esta vista — responder con todos los clientes y nota aclaratoria)
-
-**IMPORTANTE:** La Tarea A debe completarse y validarse antes de empezar la Tarea B.
-
----
-
-### ✅ Pregunta de clarificación para casos ambiguos
-
-**Problema:** El clasificador falla cuando la pregunta puede referirse a un cliente o a un
-proveedor (ej. "¿quién me visitó más en enero?"). Actualmente elige una vista y puede
-alucinár resultados incorrectos.
-
-**Diseño acordado:**
-- Añadir `scope = "ambiguous"` al Nodo 1 como tercer valor (junto a `"en_scope"` / `"fuera_scope"`)
-- El grafo LangGraph hace bypass al Nodo 6 directamente sin ejecutar SQL
-- El Nodo 6 devuelve: *"¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?"*
-- En el siguiente turno el usuario responde, y el flujo reinicia con intención clara
-
-**Archivos a modificar:**
-1. `agent/nodes.py` — `classify_and_map_node`: rama `scope = "ambiguous"` con prompt actualizado
-2. `agent/graph.py` — edge condicional: `scope == "ambiguous"` → `synthesizer` (bypass SQL)
-3. `agent/prompts.py` — ejemplos de casos ambiguos en `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`
-4. `agent/prompts.py` — plantilla de pregunta de aclaración en `SYNTHESIZER_PROMPT_TEMPLATE`
-5. `app.py` — detectar `state["scope"] == "ambiguous"` y no disparar alerta en ese turno
-
-**Casos de prueba:**
-- "¿Quién me visitó más en enero?" → debe devolver pregunta de clarificación
-- "el de la Pilsener vino esta semana?" → NO ambiguo, alias conocido → `patrones_compra_proveedor`
-- "¿Cuánto me compró Juan?" → NO ambiguo → `frecuencia_clientes`
+| # | Tarea | Prioridad |
+|---|---|---|
+| 1 | **15 preguntas de prueba** — validar precisión ≥80% con el dataset actual | Alta — criterio jurado |
+| 2 | Benchmarking de modelos (Qwen vs Llama vs alternativas) | Media — necesita HPC CEDIA |
 
 ---
 

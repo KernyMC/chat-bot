@@ -7,9 +7,22 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from agent.prompts import DEUNA_PRODUCTOS
+
 
 THRESHOLD_CAIDA = 0.20
 DEFAULT_INTERVALO_SEGUNDOS = 300
+MESES_MINIMOS_CREDITO = 12  # Banco Pichincha exige 12 meses para créditos hasta $25k
+
+# Uplift estimado por tipo de comercio al aceptar tarjetas
+# Basado en que wallets representan ~6% del mercado digital Ecuador vs 74% tarjetas
+# Usamos estimados conservadores por perfil de negocio
+UPLIFT_TARJETA = {
+    "COM-001": 0.15,   # tienda: tickets pequeños, ganancia moderada con tarjeta
+    "COM-002": 0.15,   # fonda: similar, aunque almuerzo cada vez más se paga con tarjeta
+    "COM-003": 0.22,   # salón: servicios de mayor valor → clientes prefieren tarjeta
+}
+DEUNA_NEGOCIOS_URL = "https://www.deuna.ec/negocios/"
 
 DIAS_SEMANA = {
     0: "domingo",
@@ -115,10 +128,129 @@ def construir_mensaje_alerta(alerta: AlertaVentas) -> str:
     )
 
 
+def calcular_calificacion_credito(
+    con: Any,
+    comercio_id: str | None = None,
+    fecha_referencia: str | date | None = None,
+    meses_minimos: int = MESES_MINIMOS_CREDITO,
+) -> dict | None:
+    """Verifica si el comercio tiene suficientes meses de historial para proponer un crédito."""
+    try:
+        resultado = con.execute(
+            """
+            SELECT
+                COUNT(DISTINCT DATE_TRUNC('month', dia)) AS meses_con_ventas,
+                ROUND(AVG(total), 2) AS promedio_mensual,
+                ROUND(SUM(total), 2) AS total_historico
+            FROM ventas_diarias
+            WHERE (? IS NULL OR comercio_id = ?)
+              AND (? IS NULL OR dia <= CAST(? AS DATE))
+            """,
+            [comercio_id, comercio_id, fecha_referencia, fecha_referencia],
+        ).fetchone()
+
+        if not resultado or not resultado[0]:
+            return None
+
+        meses, promedio, total = resultado
+        if meses < meses_minimos:
+            return None
+
+        return {
+            "meses": int(meses),
+            "promedio_mensual": float(promedio or 0),
+            "total_historico": float(total or 0),
+        }
+    except Exception:
+        return None
+
+
+def construir_mensaje_credito(calificacion: dict, comercio_id: str | None) -> tuple[str, str]:
+    """Mensaje proactivo cuando el comercio ya califica. Devuelve (mensaje, url_producto)."""
+    producto = DEUNA_PRODUCTOS.get(comercio_id or "COM-001", DEUNA_PRODUCTOS["COM-001"])
+    meses = calificacion["meses"]
+    promedio = calificacion["promedio_mensual"]
+
+    mensaje = (
+        f"¡Oe, tengo buenas noticias! Llevas **{meses} meses** de cobros seguidos en DeUna "
+        f"— con un promedio de **${promedio:.2f} al mes**. "
+        f"Eso ya te abre la puerta al **{producto['nombre']}**: {producto['monto_explicado']}. "
+        f"Sin ir a una agencia, sin armar carpetas — Banco Pichincha ya tiene tu historial."
+    )
+    return mensaje, producto["url"]
+
+
+def calcular_potencial_tarjeta(
+    con: Any,
+    comercio_id: str | None = None,
+) -> dict | None:
+    """Calcula el promedio mensual real del comercio (excluyendo mes parcial)."""
+    try:
+        resultado = con.execute(
+            """
+            SELECT ROUND(AVG(mes_total), 2) AS promedio_mensual
+            FROM (
+                SELECT DATE_TRUNC('month', dia) AS mes,
+                       SUM(total) AS mes_total
+                FROM ventas_diarias
+                WHERE (? IS NULL OR comercio_id = ?)
+                  AND dia < DATE '2026-04-01'
+                GROUP BY mes
+            ) sub
+            """,
+            [comercio_id, comercio_id],
+        ).fetchone()
+
+        if not resultado or not resultado[0]:
+            return None
+
+        promedio = float(resultado[0])
+        uplift_pct = UPLIFT_TARJETA.get(comercio_id or "", 0.15)
+        ganancia_estimada = round(promedio * uplift_pct, 0)
+
+        return {
+            "promedio_mensual": promedio,
+            "uplift_pct": uplift_pct,
+            "ganancia_estimada": ganancia_estimada,
+        }
+    except Exception:
+        return None
+
+
+def construir_mensaje_tarjeta(potencial: dict, comercio_id: str | None) -> tuple[str, str]:
+    """Mensaje proactivo sobre DeUna Negocios (cobro con tarjeta desde el celular)."""
+    promedio = potencial["promedio_mensual"]
+    ganancia = potencial["ganancia_estimada"]
+    uplift_pct = int(potencial["uplift_pct"] * 100)
+
+    if comercio_id == "COM-003":
+        contexto = "En un salón, los servicios de tinte y tratamientos son exactamente el tipo de cobro donde los clientes prefieren tarjeta."
+    elif comercio_id == "COM-002":
+        contexto = "Cada vez más gente paga el almuerzo con tarjeta — y si no pueden, a veces se van a otro lado."
+    else:
+        contexto = "Mucha gente sale sin efectivo y si no puede pagar con tarjeta, no compra."
+
+    mensaje = (
+        f"¡Mira esto! DeUna Negocios ya te permite **cobrar con tarjeta desde el celular** "
+        f"— sin datáfono, sin equipos, sin cuota mensual. {contexto} "
+        f"Tu negocio mueve en promedio **${promedio:.0f} al mes**. "
+        f"Si capturas aunque sea un {uplift_pct}% más de clientes que antes no podían pagarte, "
+        f"son **~${ganancia:.0f} adicionales cada mes** en tu bolsillo."
+    )
+    return mensaje, DEUNA_NEGOCIOS_URL
+
+
 async def _send_chainlit_message(content: str) -> None:
     import chainlit as cl
 
     await cl.Message(content=content).send()
+
+
+async def _send_credito_message(content: str, url: str) -> None:
+    import chainlit as cl
+
+    texto = f"{content}\n\n[📋 Ver condiciones en Banco Pichincha →]({url})"
+    await cl.Message(content=texto).send()
 
 
 async def monitor_ventas(
@@ -128,24 +260,46 @@ async def monitor_ventas(
     comercio_id: str | None = None,
     fecha_referencia: str | date | None = None,
 ) -> None:
-    """Monitorea caídas de venta y empuja alertas al hilo activo de Chainlit."""
-    alerta_enviada = False
+    """Monitorea caídas de venta y calificación crediticia; empuja alertas al hilo de Chainlit."""
+    alerta_caida_enviada = False
+    alerta_credito_enviada = False
+    alerta_tarjeta_enviada = False
+
     while True:
         await asyncio.sleep(intervalo_segundos)
 
-        if alerta_enviada:
+        # Tick 1: alerta de caída de ventas
+        if not alerta_caida_enviada:
+            alerta = calcular_alerta_ventas(
+                con=con,
+                comercio_id=comercio_id,
+                fecha_referencia=fecha_referencia,
+            )
+            if alerta is not None:
+                await _send_chainlit_message(content=f"💡 {construir_mensaje_alerta(alerta)}")
+                alerta_caida_enviada = True
             continue
 
-        alerta = calcular_alerta_ventas(
-            con=con,
-            comercio_id=comercio_id,
-            fecha_referencia=fecha_referencia,
-        )
-        if alerta is None:
+        # Tick 2: calificación crediticia
+        if not alerta_credito_enviada:
+            calificacion = calcular_calificacion_credito(
+                con=con,
+                comercio_id=comercio_id,
+                fecha_referencia=fecha_referencia,
+            )
+            if calificacion is not None:
+                mensaje, url = construir_mensaje_credito(calificacion, comercio_id)
+                await _send_credito_message(content=f"🏦 {mensaje}", url=url)
+            alerta_credito_enviada = True
             continue
 
-        await _send_chainlit_message(content=f"💡 {construir_mensaje_alerta(alerta)}")
-        alerta_enviada = True
+        # Tick 3: DeUna Negocios — cobro con tarjeta desde el celular
+        if not alerta_tarjeta_enviada:
+            potencial = calcular_potencial_tarjeta(con=con, comercio_id=comercio_id)
+            if potencial is not None:
+                mensaje, url = construir_mensaje_tarjeta(potencial, comercio_id)
+                await _send_credito_message(content=f"💳 {mensaje}", url=url)
+            alerta_tarjeta_enviada = True
 
 
 def iniciar_monitor_ventas(

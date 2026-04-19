@@ -8,6 +8,123 @@ from typing import Final
 AGENT_NAME: Final[str] = "Mi Contador de Bolsillo"
 DATASET_END_DATE: Final[str] = "2026-04-18"   # fecha de corte = hoy en la demo
 
+# ── Productos financieros DeUna × Banco Pichincha ─────────────────────────────
+# Fuente: Productos.md — solo productos del ecosistema DeUna/Banco Pichincha.
+# Personalizados por perfil de comercio.
+
+DEUNA_PRODUCTOS: Final[dict] = {
+    # Producto base para todos: Crédito para Negocio y Emprendedores — Microempresas (Banco Pichincha)
+    # $500–$20,000 | hasta 48 meses | 100% digital | sin requisito de ingresos mínimos
+    # "Impulsa tu negocio" requiere ingresos >$100k/año — NO aplica a ninguno de los 3 comercios.
+    "COM-001": {
+        "nombre": "Crédito para Negocio y Emprendedores — Banco Pichincha",
+        "monto_corto": "hasta $20,000",
+        "monto_explicado": (
+            "hasta $20,000 — eso es plata suficiente para reabastecer todo tu inventario "
+            "de fin de año sin tocar lo que tienes en caja"
+        ),
+        "plazo": "hasta 48 meses",
+        "tasa": "según evaluación crediticia",
+        "requisito_clave": (
+            "Ser cliente de Banco Pichincha y tener negocio en marcha mínimo 12 meses. "
+            "Tu historial de cobros en DeUna es tu principal respaldo — sin necesidad de armar carpetas."
+        ),
+        "por_que_te_conviene": (
+            "Tu tienda cobra todos los días — eso es flujo constante visible directo en DeUna. "
+            "El crédito es 100% digital: sin ir a agencia, sin carpetas, en minutos desde el celular."
+        ),
+        "uso_sugerido": "Reabastecer inventario de temporada alta (diciembre, semana santa) sin descapitalizarte.",
+        "url": "https://www.pichincha.com/detalle-producto/microempresas-creditos-negocio",
+    },
+    "COM-002": {
+        "nombre": "Crédito para Negocio y Emprendedores — Banco Pichincha",
+        "monto_corto": "hasta $20,000",
+        "monto_explicado": (
+            "hasta $20,000 — suficiente para pagarle a Pronaca y La Merced por adelantado "
+            "y así negociar mejor precio, sin quedarte sin plata para el día a día"
+        ),
+        "plazo": "hasta 48 meses",
+        "tasa": "según evaluación crediticia",
+        "requisito_clave": (
+            "Ser cliente de Banco Pichincha y tener negocio en marcha mínimo 12 meses. "
+            "Con más de 7,000 cobros en DeUna ya tienes más historial que muchos negocios formales."
+        ),
+        "por_que_te_conviene": (
+            "El banco ve tus lunes–viernes de almuerzo y sabe que tu caja fluye. "
+            "El crédito es 100% digital — en minutos tienes respuesta desde el celular, sin ir a ningún lado."
+        ),
+        "uso_sugerido": (
+            "Capital de trabajo para Pronaca y La Merced — pagar al proveedor al contado "
+            "y cobrar tú a tu ritmo sin quedarte sin caja."
+        ),
+        "url": "https://www.pichincha.com/detalle-producto/microempresas-creditos-negocio",
+    },
+    "COM-003": {
+        "nombre": "Crédito para Negocio y Emprendedores — Banco Pichincha",
+        "monto_corto": "hasta $20,000",
+        "monto_explicado": (
+            "hasta $20,000 — imagínate poder comprar todos los productos L'Oréal y Wella "
+            "para el Día de la Madre sin usar ni un centavo de tu caja del mes"
+        ),
+        "plazo": "hasta 48 meses",
+        "tasa": "según evaluación crediticia",
+        "requisito_clave": (
+            "Ser cliente de Banco Pichincha y tener negocio en marcha mínimo 12 meses. "
+            "Tu historial en DeUna reemplaza buena parte del papeleo bancario."
+        ),
+        "por_que_te_conviene": (
+            "Tus picos de mayo (Día de la Madre) y diciembre son predecibles — Banco Pichincha puede verlos "
+            "directo en tu historial DeUna. Eso convierte esos picos en garantía real, no en promesa."
+        ),
+        "uso_sugerido": (
+            "Financiar inventario de L'Oréal y Wella ANTES de abril — llegas al Día de la Madre "
+            "con todo el stock sin tocar tu caja del mes."
+        ),
+        "url": "https://www.pichincha.com/detalle-producto/microempresas-creditos-negocio",
+    },
+}
+
+FINANCIAL_KEYWORDS: Final[tuple[str, ...]] = (
+    "crédito", "credito", "préstamo", "prestamo", "prestame",
+    "financiamiento", "financiar", "financiero", "financiera",
+    "plata prestada", "plata del banco", "plata prestame",
+    "capital de trabajo", "microcrédito", "microcréditos",
+    "banco", "cooperativa", "sacar un crédito", "pedir un crédito",
+    "puedo sacar", "puedo pedir", "me prestan", "me dan un",
+    "quiero un crédito", "quiero préstamo", "necesito capital",
+    "cómo califico", "como califico", "requisitos para crédito",
+    "cuánto me prestan", "cuanto me prestan", "me conviene",
+    "producto financiero", "línea de crédito", "linea de credito",
+)
+
+FINANCIAL_ADVISOR_PROMPT_TEMPLATE: Final[str] = """
+Eres el asesor financiero de "Mi Contador de Bolsillo". El comerciante preguntó sobre financiamiento.
+Tienes sus datos REALES de ventas y el producto DeUna × Banco Pichincha que mejor le encaja.
+
+DATOS REALES DE VENTAS (últimos meses, de DuckDB):
+{ventas_data}
+
+PRODUCTO RECOMENDADO (DeUna × Banco Pichincha):
+Nombre: {producto_nombre}
+Monto disponible: {producto_monto_explicado}
+Plazo: {producto_plazo}
+Tasa referencial: {producto_tasa}
+Por qué le conviene a ESTE comercio: {producto_por_que}
+Uso sugerido: {producto_uso}
+Cómo aplicar: {producto_accion}
+Requisito clave: {producto_requisito}
+
+REGLAS:
+- Menciona los números REALES de ventas para anclar la recomendación ("con $X al mes...").
+- Nombra el producto exacto de DeUna × Banco Pichincha. No inventes otros productos.
+- Explica por qué su historial en DeUna es su carta de presentación, en palabras simples.
+- Sin jerga financiera. "Lo que te quedó en el bolsillo", no "utilidad operativa".
+- Máximo 4 oraciones. Termina con la acción concreta de cómo aplicar.
+- Tono de asesor de confianza del barrio, no de banco.
+
+Pregunta del comerciante: {question}
+""".strip()
+
 SYSTEM_PROMPT: Final[str] = """
 Eres "Mi Contador de Bolsillo", el asesor financiero de confianza de un comerciante ecuatoriano.
 
@@ -35,27 +152,40 @@ DATASET_CONTEXT: Final[str] = """
 Dataset disponible:
 - Fuente unica: data/transacciones.csv.
 - Periodo: 2025-01-01 a 2026-04-18 (fecha de corte = hoy).
-- Comercios: COM-001, COM-002, COM-003.
+- La fecha actual de referencia es 2026-04-18.
+- Las transacciones del 2026-04-18 son solo de la manana (dia en curso).
 - Los ingresos son cobros al cliente final.
 - Los egresos son pagos salientes del comerciante.
 - No existe columna producto ni detalle de items por transaccion.
-- La fecha actual de referencia es 2026-04-18.
-- Las transacciones del 2026-04-18 son solo de la manana (dia en curso).
+
+Tres comercios con perfiles distintos:
+- COM-001 "Tienda Don Aurelio": tienda de barrio. Categorias: Abarrotes, Bebidas, Lacteos, Snacks, Limpieza, Varios. Ticket promedio $8-18. Pico sabado.
+- COM-002 "Fonda Don Jorge": restaurante/fonda de barrio. Categorias: Almuerzos, Desayunos, Bebidas, Snacks y Pasteleria, Platos Especiales. Ticket promedio $2.50-5.50. Bimodal: 7-9am desayunos + 12-2pm almuerzos. Pico lunes-viernes (trabajadores).
+- COM-003 "Salon Belleza Total": salon de belleza. Categorias: Corte y Peinado, Tinte y Coloracion, Tratamientos Capilares, Manicure y Pedicure, Otros Servicios. Ticket promedio $12-45. Lunes casi cerrado. Pico viernes-sabado. Estacionalidad fuerte en mayo (Dia de la Madre) y diciembre.
 
 Aliases de proveedores (el tendero los llama por la marca, no por la razon social):
-- "el de la Pilsener", "Pilsener", "Cerveceria" → proveedor = "Cervecería Nacional (Pilsener)"
-- "el de la Coca-Cola", "Coca-Cola", "la Coca" → proveedor = "Arca Continental (Coca-Cola)"
-- "el de la Pepsi", "Pepsi", "Tesalia" → proveedor = "Tesalia CBC (Pepsi)"
-- "Tonicorp", "el del jugo" → proveedor = "Tonicorp"
-- "Frito Lay", "el de los snacks", "el de las papas" → proveedor = "Snacks Frito Lay"
-- "Pronaca", "el de la carne", "el del pollo" → proveedor = "Pronaca"
-- "Nestle", "Nestlé" → proveedor = "Nestlé Ecuador"
-- "Moderna", "el del arroz" → proveedor = "Moderna Alimentos"
-- "Bimbo", "el del pan" → proveedor = "Bimbo Ecuador"
-- "La Fabril", "el del aceite" → proveedor = "La Fabril"
-- "Pinguino", "el del helado" → proveedor = "Helados Pingüino"
-- "CNT", "el internet", "el telefono" → proveedor = "CNT" (Servicios Basicos)
-- "Empresa Electrica", "la luz", "el de la luz" → proveedor = "Empresa Eléctrica"
+COM-001 (tienda):
+- "el de la Pilsener", "Pilsener", "Cerveceria" → "Cervecería Nacional (Pilsener)"
+- "el de la Coca-Cola", "Coca-Cola", "la Coca" → "Arca Continental (Coca-Cola)"
+- "el de la Pepsi", "Pepsi", "Tesalia" → "Tesalia CBC (Pepsi)"
+- "Tonicorp", "el del jugo" → "Tonicorp"
+- "Frito Lay", "el de los snacks", "el de las papas" → "Snacks Frito Lay"
+- "Nestle", "Nestlé" → "Nestlé Ecuador"
+- "Moderna", "el del arroz" → "Moderna Alimentos"
+- "Bimbo", "el del pan" → "Bimbo Ecuador"
+- "La Fabril", "el del aceite" → "La Fabril"
+- "Pinguino", "el del helado" → "Helados Pingüino"
+COM-002 (fonda):
+- "Pronaca", "el de la carne", "el del pollo" → "Pronaca"
+- "La Merced", "el de las verduras", "el de los frescos" → "Distribuidora La Merced"
+COM-003 (salon):
+- "el de los productos", "Distribuidora", "el proveedor de belleza" → "Distribuidora de Belleza Ecuador"
+- "L'Oreal", "el de L'Oreal", "Loreal" → "L'Oréal Professional Ecuador"
+- "Wella", "el de Wella" → "Wella Ecuador"
+- "Essie", "el de las unas" → "Essie Ecuador"
+Servicios basicos (todos los comercios):
+- "CNT", "el internet", "el telefono" → "CNT"
+- "Empresa Electrica", "la luz", "el de la luz" → "Empresa Eléctrica"
 """.strip()
 
 VIEW_SCHEMAS: Final[dict[str, str]] = {
@@ -233,7 +363,8 @@ Vistas disponibles:
 
 REGLAS:
 - en_scope: ventas, cobros, clientes, categorías, horarios, proveedores, días pico, cualquier dato del dataset.
-- fuera_scope: clima, precios de mercado, inventario físico, predicciones externas, noticias.
+- en_scope_financiero: preguntas sobre crédito, préstamo, financiamiento, capital de trabajo, productos bancarios, cuánto me prestan, cómo califico. Usar SIEMPRE view_name="ventas_periodo". El sistema consultará el historial real de ventas y recomendará el producto DeUna × Banco Pichincha correspondiente.
+- fuera_scope: clima, precios de mercado, inventario físico, predicciones externas, noticias, preguntas que no tienen nada que ver con el negocio.
 - ambiguous: preguntas donde "quién me visitó", "quién vino" o "quién pasó" pueden referirse tanto a un cliente que compra como a un proveedor que surte, SIN mencionar marca/proveedor conocido ni decir "cliente".
 - EXCEPCIÓN: si la pregunta incluye verbos de acción del comprador (compra, comprar, compró, gasta, gastó, paga, pagó, consume), NO es ambiguous aunque use "visita" o "vino" — clasificar como en_scope con vista frecuencia_clientes.
 - EJEMPLO: "¿quién me visita más y qué compra?" → en_scope, frecuencia_clientes.
@@ -262,7 +393,7 @@ REGLAS:
 
 Responde SOLO en JSON válido:
 {{
-  "scope": "en_scope|fuera_scope|ambiguous",
+  "scope": "en_scope|en_scope_financiero|fuera_scope|ambiguous",
   "view_name": "nombre_vista_o_null",
   "params": {{
     "comercio_id": "COM-001|COM-002|COM-003|null",
@@ -402,6 +533,7 @@ Reglas:
 - Si resultado_sql esta vacio, di que no hay datos en ese periodo.
 - No hagas calculos nuevos. Si falta un porcentaje o total, no lo inventes.
 - TRANSPARENCIA DE PERIODO: Si el resultado contiene una columna "mes" o similar con un valor de fecha, menciona siempre el mes Y el año en tu respuesta (ej. "En enero de 2026..." o "En marzo de 2025..."). No asumas que el usuario sabe qué año consultó el sistema.
+- CATEGORIAS SOLO DEL RESULTADO: NUNCA menciones categorías, productos o servicios que no aparezcan textualmente en resultado_sql o resultado_secundario. No uses tu conocimiento general para inferir qué vende el comercio. Si resultado_sql no incluye columna "categoria", NO menciones ninguna categoría.
 - Si requires_product_disclaimer es true Y la pregunta original menciona explícitamente "producto", "productos", "item" o "qué compra/compró/vende", explica que Deuna registra el cobro total no productos individuales, y ofrece categoria como aproximacion. Si la pregunta es solo sobre montos o frecuencia de un cliente, NO añadas este disclaimer.
 - Maximo 3-4 oraciones.
 - Termina con una accion concreta.

@@ -36,20 +36,31 @@ proveedores, qué día del mes suele comprar al distribuidor.
 | UI | Chainlit | Async nativo, Plotly inline |
 | Visualizaciones | Plotly via `cl.Plotly` | Inline en el chat |
 | Alertas | asyncio background task | Hilo paralelo, siempre activo |
-| Dataset | CSV sintético Deuna | 3 comercios, 2025-01-01→2026-04-18, ~8000 transacciones, sin ítems |
+| Dataset | CSV sintético Deuna | 3 comercios, 2025-01-01→2026-04-18, 13,399 transacciones, sin ítems |
+| Perfiles de comercio | Chainlit Chat Profiles | 3 perfiles seleccionables: Tienda Don Aurelio, Fonda Don Jorge, Salón Belleza Total |
 
 ---
 
-## Arquitectura de los 6 nodos LangGraph
+## Arquitectura de los nodos LangGraph
+
+Nodos 1+2 están fusionados en un solo nodo (`classify_and_map_node`) para reducir latencia.
 
 ```
-Nodo 1: Clasificador     → ¿La pregunta usa datos del dataset? Sí/No
-Nodo 2: Semántico        → Mapea intención a vista DuckDB correcta
-Nodo 3: Generador SQL    → Qwen genera SQL contra la vista
-Nodo 4: Validador        → Chequea sintaxis antes de ejecutar
-Nodo 5: Ejecutor         → DuckDB ejecuta, si falla vuelve al Nodo 3
-Nodo 6: Sintetizador     → Qwen traduce resultado a español neutro + Plotly si aplica
+Nodo 1+2: Clasificador+Semántico → scope (en_scope | en_scope_financiero | ambiguous | fuera_scope)
+                                    + vista DuckDB + parámetros
+Nodo 3:   Generador SQL          → Qwen genera SQL contra la vista
+Nodo 4:   Validador              → Chequeo estático antes de ejecutar
+Nodo 5:   Ejecutor               → DuckDB ejecuta, si falla vuelve al Nodo 3 (hasta 3 reintentos)
+Nodo 6a:  Sintetizador           → Qwen traduce resultado a español neutro + Plotly si aplica
+Nodo 6b:  Asesor Financiero      → Solo para en_scope_financiero: combina datos reales de ventas
+                                    con producto DeUna × Banco Pichincha personalizado por comercio
 ```
+
+Routing especial:
+- `ambiguous` → bypass directo a Sintetizador (devuelve pregunta de clarificación)
+- `fuera_scope` → bypass directo a Sintetizador (devuelve "No tengo ese dato")
+- `en_scope_financiero` → SQL contra ventas_periodo → Asesor Financiero → END
+- `en_scope` → flujo normal → Sintetizador → END
 
 ---
 
@@ -71,22 +82,29 @@ Estas reglas DEBEN estar en el system prompt y en la lógica del Nodo 1:
 
 ---
 
-## Vistas semánticas requeridas (10 vistas)
+## Vistas semánticas implementadas (11 vistas)
 
 ```sql
 -- ventas_diarias              → total + ticket promedio por día (solo Ingresos)
 -- ventas_periodo              → por semana y mes (solo Ingresos)
 -- frecuencia_clientes         → visitas + total gastado + días sin volver (ref: 2026-04-18)
+-- frecuencia_clientes_mensual → visitas por cliente filtrable por mes o año concreto
 -- categorias_populares        → ranking por categoría: Bebidas, Snacks, Lácteos, etc.
 -- clientes_perdidos           → días_sin_volver > 30
 -- patrones_temporales         → hora + día semana → horas pico (año completo)
 -- patrones_temporales_mensual → horas pico EN UN MES CONCRETO (cuando mencionan enero, diciembre, etc.)
 -- gastos_proveedores          → gasto total por proveedor (Egresos Pago a Proveedor)
+-- gastos_proveedores_mensual  → gasto por proveedor filtrable por mes concreto
 -- patrones_compra_proveedor   → qué día del mes/semana se compra al distribuidor
 ```
 
 El LLM **nunca** debe escribir SQL contra la tabla cruda. Solo contra estas vistas.
 No existe vista de "productos" — el dataset no tiene ítems individuales (escenario real Deuna).
+
+Override determinístico en `classify_and_map_node` (independiente del LLM):
+- `frecuencia_clientes` + año/mes en pregunta → redirige a `frecuencia_clientes_mensual`
+- `gastos_proveedores` + año/mes en pregunta → redirige a `gastos_proveedores_mensual`
+- Palabras clave financieras → fuerza `en_scope_financiero` aunque LLM diga `fuera_scope`
 
 ---
 
@@ -122,61 +140,35 @@ No existe vista de "productos" — el dataset no tiene ítems individuales (esce
 
 ---
 
-## PENDIENTES — mejoras identificadas, no implementadas aún
+## Estado de implementación
 
-### ⏳ Memoria de conversación — Opción B: historial en AgentState
+### ✅ Implementado y funcional
 
-**Problema:** El agente procesa cada mensaje de forma independiente. Si el mensaje de bienvenida dice "Esta semana llevas $319 — pregúntame para ver el detalle" y el usuario responde "dame el detalle", el clasificador ve solo esas palabras y falla.
+| Feature | Descripción |
+|---|---|
+| Historial de conversación | `conversation_history` en AgentState, últimos 3 turnos inyectados al clasificador |
+| Pregunta de clarificación | `scope="ambiguous"` con bypass directo a sintetizador |
+| Selección de comercio | Chainlit Chat Profiles → `default_comercio_id` propagado por todo el grafo |
+| Dataset con personalidades | 13,399 tx, 3 perfiles diferenciados (tienda / fonda / salón) |
+| Vista frecuencia_clientes_mensual | Clientes filtrables por mes o año concreto |
+| Vista gastos_proveedores_mensual | Proveedores filtrables por mes concreto |
+| Overrides determinísticos | Python fuerza redirección de vistas cuando LLM falla |
+| Rama financiera en el grafo | `en_scope_financiero` → `financial_advisor_node` con datos reales + producto DeUna |
+| Alertas proactivas (2 ticks) | Tick 1: caída de ventas; Tick 2: calificación para Microcrédito Digital Banco Pichincha |
+| Gráficos Plotly inline | Eje categorical forzado, labels en español, mapeo vista→chart |
 
-**Solución diseñada:**
-- Añadir `conversation_history: list[dict]` al `AgentState`
-- En `app.py` `on_message`: guardar historial en `cl.user_session` (últimos 3 mensajes)
-- Inyectar el último mensaje del agente al prompt del clasificador como contexto
-- Costo estimado: +~200 tokens por llamada → +0.3s de latencia
+### 🚫 Descartado para el pitch
 
-**Archivos a modificar:** `agent/nodes.py` (AgentState), `agent/prompts.py` (CLASSIFIER template), `app.py` (guardar/leer historial)
+| Feature | Razón |
+|---|---|
+| Supermemory API (persistencia entre sesiones) | Latencia extra, privacidad, jurado no lo verá. Mencionar como roadmap de producción. |
 
----
+### ⏳ Pendiente
 
-### ⏳ Memoria persistente — Opción C: Supermemory API
-
-**Concepto:** Usar Supermemory (supermemory.ai) para persistir contexto entre sesiones — el tendero retoma la conversación donde la dejó, incluso al día siguiente.
-
-**Cautelas antes de implementar:**
-- Latencia: llamada HTTP extra en cada turno (~200-500ms adicionales)
-- Privacidad: datos de transacciones del tendero salen del entorno local hacia API externa
-- Scope del hackathon: el reto no pide persistencia entre sesiones, y los datos son sintéticos
-- Valor demo: el jurado no va a cerrar y reabrir el chat para ver persistencia
-
-**Veredicto provisional:** No implementar para el pitch. Mencionar como roadmap de producción ("en producción, Deuna ya tiene el historial del comerciante — podríamos conectarlo aquí").
-
----
-
-### ✅ Pregunta de clarificación para casos ambiguos
-
-**Problema detectado en pruebas:** Cuando el tendero usa una frase que puede referirse tanto
-a un cliente como a un proveedor (ej. "el de la Pilsener", "el que me visita los martes"),
-el clasificador elige una vista y puede alucinár en la otra dirección.
-
-**Solución diseñada (pendiente de implementar):**
-- Añadir `scope = "ambiguous"` como tercer valor posible en el Nodo 1 (además de `"en_scope"` y `"fuera_scope"`)
-- Cuando `scope == "ambiguous"`, el grafo LangGraph hace bypass directo al Nodo 6 (Sintetizador)
-  sin pasar por los nodos SQL
-- El Sintetizador devuelve una pregunta de clarificación al usuario, por ejemplo:
-  > "¿Me puedes aclarar si hablamos de un cliente que te compra, o de un proveedor que te surte?"
-- Una vez el usuario responde, se reinicia el flujo con `scope = "en_scope"` y la intención clara
-
-**Cambios requeridos cuando se implemente:**
-1. `agent/nodes.py` — `classify_and_map_node`: añadir rama `scope = "ambiguous"` con ejemplos en el prompt
-2. `agent/graph.py` — añadir edge condicional: si `scope == "ambiguous"` → `synthesizer` directamente
-3. `agent/prompts.py` — `CLASSIFIER_SEMANTIC_PROMPT_TEMPLATE`: ejemplos de casos ambiguos
-4. `agent/prompts.py` — `SYNTHESIZER_PROMPT_TEMPLATE`: plantilla de pregunta de clarificación
-5. `app.py` — `on_message`: detectar si `state["scope"] == "ambiguous"` y NO iniciar la alerta proactiva en ese turno
-
-**Casos de prueba para validar:**
-- "¿Quién me visitó más en enero?" → ambiguo (cliente o proveedor?)
-- "el de la Pilsener vino esta semana?" → debería resolver a proveedor (alias conocido), NO ambiguo
-- "¿Cuánto me compró Juan?" → debería resolver a cliente sin ambigüedad
+| Feature | Prioridad | Notas |
+|---|---|---|
+| 15 preguntas de prueba con dataset nuevo | Alta — criterio del jurado | Validar precisión ≥80% antes del pitch |
+| Benchmarking de modelos (Qwen vs alternativas) | Media | Necesita acceso HPC CEDIA; no bloquea demo |
 
 ---
 
@@ -204,21 +196,22 @@ python -c "import duckdb; duckdb.sql('SELECT COUNT(*) FROM read_csv_auto(\"data/
 mi-contador/
 ├── CLAUDE.md              ← este archivo
 ├── AGENTS.md              ← instrucciones para otros modelos
-├── app.py                 ← Chainlit entry point + mensajes bienvenida rotatorios
+├── Productos.md           ← productos financieros Banco Pichincha / DeUna investigados (2025-2026)
+├── app.py                 ← Chainlit entry point + chat profiles + bienvenidas rotatorias
 ├── agent/
 │   ├── config.py          ← DEMO_COMERCIO_ID (fuente única — cambiar aquí para la demo)
-│   ├── graph.py           ← LangGraph con los 6 nodos (Nodos 1+2 fusionados)
-│   ├── nodes.py           ← lógica de cada nodo
-│   ├── semantic_layer.py  ← 10 vistas DuckDB, ref fecha 2026-04-18
-│   └── prompts.py         ← system prompt + templates
+│   ├── graph.py           ← LangGraph: 7 nodos (1+2 fusionados + financial_advisor)
+│   ├── nodes.py           ← lógica de cada nodo + financial_advisor_node
+│   ├── semantic_layer.py  ← 11 vistas DuckDB, ref fecha 2026-04-18
+│   └── prompts.py         ← system prompt + templates + DEUNA_PRODUCTOS
 ├── data/
-│   └── transacciones.csv  ← 2025-01-01→2026-04-18, 8020 tx, sin ítems
+│   └── transacciones.csv  ← 2025-01-01→2026-04-18, 13399 tx, 3 comercios, sin ítems
 ├── scripts/
-│   └── generar_dataset.py ← regenera el CSV (seed=42, reproducible)
+│   └── generar_dataset.py ← regenera el CSV (seed=42, reproducible, COMERCIO_CONFIG por perfil)
 ├── alerts/
-│   └── proactive.py       ← asyncio background task
+│   └── proactive.py       ← asyncio: tick1=caída ventas, tick2=calificación crédito DeUna
 └── utils/
-    └── charts.py          ← helpers Plotly
+    └── charts.py          ← helpers Plotly con eje categorical + labels español
 ```
 
 ---
@@ -231,16 +224,23 @@ intervalo_segundos = 10          # default 300, bajar a 10 para que dispare en v
 fecha_referencia   = "2026-04-18"  # fecha de corte del dataset = hoy, día parcial → caída 88% garantizada
 ```
 
-El dataset corta el 2026-04-18 con solo 3 transacciones de la mañana (vs mediana histórica de sábados ~$95).
-La caída es -88%, la alerta siempre dispara en la demo sin configuración adicional.
+El dataset corta el 2026-04-18 con solo 3 transacciones de la mañana (vs mediana histórica de sábados).
+La caída es ~-88%, la alerta siempre dispara en la demo sin configuración adicional.
+
+Los 3 comercios tienen **16 meses exactos** de historial (ene 2025 → abr 2026) → siempre califican para la alerta de crédito (tick 2).
+
+**Secuencia garantizada en demo (intervalo=10s):**
+1. **t=0s** — Bienvenida rotatorea con datos reales del comercio seleccionado
+2. **t=10s** — 💡 Alerta de caída de ventas (-88% vs histórico sábados)
+3. **t=20s** — 🏦 Alerta de calificación: "Llevas 16 meses de cobros — ya tienes más historial digital que muchos negocios que llegan al banco con carpetas. Te abre la puerta al Crédito para Negocio y Emprendedores de Banco Pichincha."
 
 ## Mensajes de bienvenida rotatorios (on_chat_start)
 
-Al abrir el chat, `app.py` consulta DuckDB directamente y elige al azar uno de 5 mensajes accionables:
+Al abrir el chat, `app.py` consulta DuckDB directamente (usando el comercio del perfil activo) y elige al azar uno de 5 mensajes accionables:
 - **ventas_hoy**: cuánto lleva el comercio hoy (parcial del sábado)
 - **top_cliente**: quién es el cliente más fiel y cuándo fue la última visita
 - **clientes_perdidos**: cuántos clientes no han vuelto en >30 días
-- **semana**: comparación esta semana vs semana pasada con % de cambio
+- **semana**: comparación esta semana vs semana pasada
 - **top_categoria**: la categoría que más ingresos genera
 
 Estos mensajes simulan trazabilidad en tiempo real: como si los datos bancarios llegaran continuamente y el agente ya los estuviera monitoreando.
@@ -252,7 +252,7 @@ Estos mensajes simulan trazabilidad en tiempo real: como si los datos bancarios 
 **El problema real de adopción** (investigado con Consensus + web):
 - 85% de microempresarios en Ecuador ya usa billeteras digitales (2025), pero la literacidad
   digital no modera los resultados financieros — adoptan sin entender.
-- Deuna tiene ~450,000 comercios afiliados y 4M+ usuarios, pero el merchant lo usa como
+- Deuna tiene ~620,000 comercios afiliados y 6M+ usuarios (datos 2025), pero el merchant lo usa como
   *reducción de fraude*, no como *herramienta de gestión*. Adopción supply-driven.
 - Barreras documentadas al chatbot financiero: miedo a visibilidad fiscal (cuaderno es opaco),
   preferencia por liquidez en efectivo, desconfianza en plataformas externas.
@@ -279,8 +279,18 @@ Estos mensajes simulan trazabilidad en tiempo real: como si los datos bancarios 
 
 ## Criterios de éxito del jurado (no perder de vista)
 
-- [ ] 80% de precisión en 15 preguntas de prueba
+- [ ] 80% de precisión en 15 preguntas de prueba ← **PENDIENTE ejecutar**
 - [ ] Tiempo de respuesta < 5 segundos
 - [ ] Respuestas comprensibles sin explicación adicional
-- [ ] Al menos 1 alerta proactiva funcionando en demo
+- [x] Al menos 1 alerta proactiva funcionando en demo (ahora son 2: caída + crédito)
 - [ ] Visualizaciones inline cuando aplican
+
+## Argumento diferenciador para el pitch (validado con fuentes reales)
+
+> "Tu historial de cobros en DeUna ES tu historial crediticio. Banco Pichincha tiene el primer microcrédito 100% digital de la región — sin ir a agencia, en minutos desde el celular. Nosotros detectamos cuándo ya calificas y te avisamos. Tú solo tocas el link."
+
+Fuentes verificadas:
+- DeUna declaró oficialmente que su uso "construye historial crediticio facilitando acceso a crédito" (El Universo, 2025)
+- Banco Pichincha ganó premio Qorus/Accenture a la innovación por su microcrédito digital
+- Banco Pichincha otorga >50% de los microcréditos del sector bancario en Ecuador
+- **Producto correcto para los 3 comercios**: "Crédito para Negocio y Emprendedores — Microempresas" ($500–$20,000, hasta 48 meses, 100% digital). "Impulsa tu negocio" y "Crédito Mujer" requieren ingresos >$100k/año — ninguno de los 3 comercios califica.

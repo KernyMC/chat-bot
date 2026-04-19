@@ -18,17 +18,52 @@ from utils.charts import chart_for_result
 DEMO_ALERT_INTERVAL_SECONDS = 10
 DEMO_ALERT_REFERENCE_DATE = "2026-04-18"   # día parcial → alerta garantizada
 
+# ── Perfiles de comercio para la demo ─────────────────────────────────────────
+
+COMERCIO_PERFILES = {
+    "Tienda Don Aurelio": {
+        "comercio_id": "COM-001",
+        "emoji": "🛒",
+        "descripcion": "Tienda de barrio · Abarrotes, Bebidas, Lácteos",
+    },
+    "Fonda Don Jorge": {
+        "comercio_id": "COM-002",
+        "emoji": "🍽️",
+        "descripcion": "Restaurante de barrio · Almuerzos y desayunos",
+    },
+    "Salón Belleza Total": {
+        "comercio_id": "COM-003",
+        "emoji": "💇",
+        "descripcion": "Salón de belleza · Cortes, tintes, manicure",
+    },
+}
+
+
+@cl.set_chat_profiles
+async def chat_profile() -> list[cl.ChatProfile]:
+    return [
+        cl.ChatProfile(
+            name=nombre,
+            markdown_description=f"{p['emoji']} **{nombre}**\n\n{p['descripcion']}",
+        )
+        for nombre, p in COMERCIO_PERFILES.items()
+    ]
+
+
+def _get_comercio_id() -> str:
+    """Devuelve el comercio_id activo según el perfil seleccionado."""
+    perfil = cl.user_session.get("chat_profile") or "Tienda Don Aurelio"
+    return COMERCIO_PERFILES.get(perfil, {}).get("comercio_id", DEMO_COMERCIO_ID)
+
 
 # ── Mensajes de bienvenida rotatorios ─────────────────────────────────────────
-# Cada función consulta DuckDB directamente y devuelve un string accionable.
-# Al abrir el chat se elige uno al azar, simulando que el agente "ya revisó" los números.
 
-def _bienvenida_ventas_hoy(con: Any) -> str:
+def _bienvenida_ventas_hoy(con: Any, comercio_id: str) -> str:
     try:
         row = con.execute(
             "SELECT COALESCE(ROUND(SUM(total), 2), 0), COALESCE(SUM(num_transacciones), 0) "
             "FROM ventas_diarias WHERE comercio_id = ? AND dia = DATE '2026-04-18'",
-            [DEMO_COMERCIO_ID],
+            [comercio_id],
         ).fetchone()
         total, ntx = row if row else (0, 0)
         if total and total > 0:
@@ -42,13 +77,13 @@ def _bienvenida_ventas_hoy(con: Any) -> str:
     return _bienvenida_fallback()
 
 
-def _bienvenida_top_cliente(con: Any) -> str:
+def _bienvenida_top_cliente(con: Any, comercio_id: str) -> str:
     try:
         row = con.execute(
             "SELECT nombre_cliente, visitas, ROUND(total_gastado, 2), dias_sin_volver "
             "FROM frecuencia_clientes WHERE comercio_id = ? "
             "ORDER BY total_gastado DESC LIMIT 1",
-            [DEMO_COMERCIO_ID],
+            [comercio_id],
         ).fetchone()
         if row:
             nombre, visitas, gastado, dias = row
@@ -60,7 +95,7 @@ def _bienvenida_top_cliente(con: Any) -> str:
                 ultimo = f"hace {dias} días que no pasa"
             return (
                 f"¡Mi pana! Tu cliente más fiel es **{nombre}** — ha caído **{visitas} veces** "
-                f"y lleva **${gastado:.2f}** gastados en tu tienda ({ultimo}). "
+                f"y lleva **${gastado:.2f}** gastados en tu negocio ({ultimo}). "
                 f"Pregúntame **¿quiénes son mis clientes más frecuentes?** para ver el ranking completo."
             )
     except Exception:
@@ -68,13 +103,13 @@ def _bienvenida_top_cliente(con: Any) -> str:
     return _bienvenida_fallback()
 
 
-def _bienvenida_clientes_perdidos(con: Any) -> str:
+def _bienvenida_clientes_perdidos(con: Any, comercio_id: str) -> str:
     try:
         row = con.execute(
             "SELECT COUNT(*), nombre_cliente, ROUND(total_gastado, 2) "
             "FROM clientes_perdidos WHERE comercio_id = ? "
             "ORDER BY total_gastado DESC LIMIT 1",
-            [DEMO_COMERCIO_ID],
+            [comercio_id],
         ).fetchone()
         if row and row[0]:
             count, nombre, gastado = row
@@ -88,13 +123,13 @@ def _bienvenida_clientes_perdidos(con: Any) -> str:
     return _bienvenida_fallback()
 
 
-def _bienvenida_semana(con: Any) -> str:
+def _bienvenida_semana(con: Any, comercio_id: str) -> str:
     try:
         rows = con.execute(
             "SELECT semana, ROUND(total, 2) FROM ventas_periodo "
             "WHERE comercio_id = ? AND semana >= DATE_TRUNC('week', DATE '2026-04-18') - INTERVAL '7 days' "
             "ORDER BY semana DESC LIMIT 2",
-            [DEMO_COMERCIO_ID],
+            [comercio_id],
         ).fetchall()
         if rows and len(rows) >= 2:
             esta_sem = rows[0][1]
@@ -116,12 +151,12 @@ def _bienvenida_semana(con: Any) -> str:
     return _bienvenida_fallback()
 
 
-def _bienvenida_top_categoria(con: Any) -> str:
+def _bienvenida_top_categoria(con: Any, comercio_id: str) -> str:
     try:
         row = con.execute(
             "SELECT categoria, ROUND(ingreso_total, 2) FROM categorias_populares "
             "WHERE comercio_id = ? ORDER BY ingreso_total DESC LIMIT 1",
-            [DEMO_COMERCIO_ID],
+            [comercio_id],
         ).fetchone()
         if row:
             cat, total = row
@@ -177,9 +212,11 @@ async def _close_session_resources() -> None:
 
 @cl.on_chat_start
 async def on_chat_start() -> None:
+    comercio_id = _get_comercio_id()
     con = get_connection()
     cl.user_session.set("con", con)
     cl.user_session.set("conversation_history", [])
+    cl.user_session.set("comercio_id", comercio_id)
 
     session_id = _get_session_id()
     monitor_task = iniciar_monitor_ventas(
@@ -187,13 +224,12 @@ async def on_chat_start() -> None:
         con=con,
         intervalo_segundos=DEMO_ALERT_INTERVAL_SECONDS,
         fecha_referencia=DEMO_ALERT_REFERENCE_DATE,
-        comercio_id=DEMO_COMERCIO_ID,
+        comercio_id=comercio_id,
     )
     cl.user_session.set("monitor_task", monitor_task)
 
-    # Mensaje de bienvenida rotatorio con dato real del DuckDB
     probe = random.choice(BIENVENIDAS)
-    welcome = probe(con)
+    welcome = probe(con, comercio_id)
     await cl.Message(content=welcome).send()
 
 
@@ -204,13 +240,19 @@ async def main(message: cl.Message) -> None:
         con = get_connection()
         cl.user_session.set("con", con)
 
+    comercio_id = cl.user_session.get("comercio_id", DEMO_COMERCIO_ID)
     question = message.content.strip()
     if not question:
         await cl.Message(content="Cuéntame qué dato quieres revisar.").send()
         return
 
     history = cl.user_session.get("conversation_history", [])
-    state = await run_agent(question, con, conversation_history=history)
+    state = await run_agent(
+        question,
+        con,
+        conversation_history=history,
+        comercio_id=comercio_id,
+    )
     response = state.get("response") or "No pude preparar una respuesta con esos datos."
     history = [
         *history,
@@ -221,6 +263,12 @@ async def main(message: cl.Message) -> None:
 
     if state.get("scope") == "ambiguous":
         await cl.Message(content=response).send()
+        return
+
+    # Respuesta financiera: link directo al producto bancario
+    if state.get("scope") == "en_scope_financiero" and state.get("producto_url"):
+        texto = f"{response}\n\n[📋 Ver condiciones en Banco Pichincha →]({state['producto_url']})"
+        await cl.Message(content=texto).send()
         return
 
     elements = []
