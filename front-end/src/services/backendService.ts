@@ -115,7 +115,31 @@ function sqlResultToPdfData(
   }
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface BackendSuggestion {
+  title: string
+  message: string
+  icon: 'growth' | 'alert' | 'tip' | 'payment'
+  url: string | null
+}
+
+// Strips **bold** markdown from proactive.py messages
+function stripMarkdown(text: string): string {
+  return text.replace(/\*\*(.*?)\*\*/g, '$1')
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
+
+export async function getSuggestions(): Promise<BackendSuggestion[]> {
+  const res = await fetch(`${BASE_URL}/suggestions`)
+  if (!res.ok) throw new Error(`Suggestions error (${res.status})`)
+  const data = await res.json()
+  return ((data.suggestions ?? []) as BackendSuggestion[]).map((s) => ({
+    ...s,
+    message: stripMarkdown(s.message),
+  }))
+}
 
 export async function sendToBackend(message: string): Promise<BackendChatResponse> {
   const res = await fetch(`${BASE_URL}/chat`, {
