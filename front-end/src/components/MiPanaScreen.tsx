@@ -137,7 +137,8 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
   ])
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const provider = 'backend' as const satisfies (AIProvider | 'backend')
+  // Usar 'groq' para funcionar sin backend
+  const provider: AIProvider = 'groq'
 
   // Parses <function=name>{...}</function> embedded in text (some models skip structured tool calls)
   const parseFunctionCalls = (rawText: string): { cleanText: string; uiMsgs: ChatMessage[] } => {

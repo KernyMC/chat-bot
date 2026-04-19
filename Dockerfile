@@ -3,6 +3,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build arguments for API keys (passed from Dokploy)
+ARG VITE_GROQ_API_KEY
+ARG VITE_OPENAI_API_KEY
+ARG VITE_DEEPSEEK_API_KEY
+ARG VITE_CHAT_PROVIDER=groq
+
+# Set as environment variables for Vite build
+ENV VITE_GROQ_API_KEY=$VITE_GROQ_API_KEY
+ENV VITE_OPENAI_API_KEY=$VITE_OPENAI_API_KEY
+ENV VITE_DEEPSEEK_API_KEY=$VITE_DEEPSEEK_API_KEY
+ENV VITE_CHAT_PROVIDER=$VITE_CHAT_PROVIDER
+
 # Copy package files from front-end directory
 COPY front-end/package.json front-end/package-lock.json* ./
 
@@ -12,7 +24,7 @@ RUN npm ci
 # Copy front-end source code
 COPY front-end/ .
 
-# Build the application
+# Build the application (Vite will embed the env vars)
 RUN npm run build
 
 # Stage 2: Production
