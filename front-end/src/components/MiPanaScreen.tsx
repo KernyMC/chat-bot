@@ -18,7 +18,6 @@ import type { ChatMessage, OpenAIMessage } from '../types/chat'
 import {
   callAI,
   callAIWithToolResults,
-  AI_PROVIDERS,
   type AIProvider,
   type ToolCallResult,
 } from '../services/aiService'
@@ -57,27 +56,35 @@ function formatTooltipCurrency(value: unknown, label: string): [string, string] 
 function FormattedText({ text, color = '#111827', size = 15 }: { text: string; color?: string; size?: number }) {
   const lines = text.split('\n').filter((l) => l !== undefined)
   return (
-    <div style={{ margin: 0, fontSize: size, color, lineHeight: 1.6 }}>
+    <div style={{ margin: 0, fontSize: size, color, lineHeight: 1.6, textAlign: 'left' }}>
       {lines.map((line, i) => {
         const trimmed = line.trim()
         if (!trimmed) return <div key={i} style={{ height: 6 }} />
         const isBullet = /^[-•·]\s/.test(trimmed)
         const isNumbered = /^\d+\.\s/.test(trimmed)
+        const bulletLabel = isNumbered ? (trimmed.match(/^\d+\./)?.[0] ?? '') : '•'
+        const bodyText = isBullet
+          ? trimmed.slice(2)
+          : isNumbered
+            ? trimmed.replace(/^\d+\.\s/, '')
+            : trimmed
         return (
           <div
             key={i}
             style={{
               display: 'flex',
-              gap: isBullet || isNumbered ? 6 : 0,
-              marginBottom: 2,
+              alignItems: 'flex-start',
+              gap: 6,
+              marginBottom: isBullet || isNumbered ? 4 : 2,
+              paddingLeft: isBullet || isNumbered ? 4 : 0,
             }}
           >
             {(isBullet || isNumbered) && (
-              <span style={{ color: '#5B21B6', fontWeight: 700, flexShrink: 0 }}>
-                {isBullet ? '·' : trimmed.match(/^\d+\./)?.[0]}
+              <span style={{ color: '#5B21B6', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
+                {bulletLabel}
               </span>
             )}
-            <span>{isBullet ? trimmed.slice(2) : isNumbered ? trimmed.replace(/^\d+\.\s/, '') : trimmed}</span>
+            <span style={{ flex: 1 }}>{bodyText}</span>
           </div>
         )
       })}
@@ -130,11 +137,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
   ])
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [provider, setProvider] = useState<AIProvider | 'backend'>(() => {
-    const env = import.meta.env.VITE_CHAT_PROVIDER as string
-    if (env === 'backend' || env === 'openai' || env === 'groq') return env
-    return 'deepseek'
-  })
+  const provider: AIProvider | 'backend' = 'groq'
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -432,6 +435,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
               borderTopLeftRadius: 4,
               padding: '10px 14px',
               maxWidth: '80%',
+              textAlign: 'left',
             }}
           >
             <FormattedText text={msg.content} />
@@ -757,7 +761,7 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                 alignItems: 'center',
               }}
             >
-              {isLoading ? (
+              {isLoading && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div
                     style={{
@@ -770,37 +774,6 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
                   />
                   <span style={{ fontSize: 11, color: '#0F766E' }}>escribiendo...</span>
                 </div>
-              ) : (
-                <button
-                  onClick={() =>
-                    setProvider((p) => {
-                      const cycle: (AIProvider | 'backend')[] = ['deepseek', 'openai', 'groq', 'backend']
-                      return cycle[(cycle.indexOf(p) + 1) % cycle.length]
-                    })
-                  }
-                  title={
-                    provider === 'backend'
-                      ? 'Backend local — clic para cambiar'
-                      : `${AI_PROVIDERS[provider as AIProvider].label} — clic para cambiar`
-                  }
-                  style={{
-                    background:
-                      provider === 'backend'
-                        ? '#0F766E'
-                        : AI_PROVIDERS[provider as AIProvider].color,
-                    border: 'none',
-                    borderRadius: 12,
-                    padding: '4px 10px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {provider === 'backend'
-                    ? '🏠 Local'
-                    : `${AI_PROVIDERS[provider as AIProvider].emoji} ${AI_PROVIDERS[provider as AIProvider].label}`}
-                </button>
               )}
             </div>
           </div>
