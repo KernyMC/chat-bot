@@ -25,8 +25,8 @@ RUN npm run build
 # Stage 2: Production
 FROM nginx:alpine
 
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built files from builder stage (from /project/front-end/dist)
+COPY --from=builder /project/front-end/dist /usr/share/nginx/html
 
 # Copy nginx configuration from front-end directory
 COPY front-end/nginx.conf /etc/nginx/conf.d/default.conf
