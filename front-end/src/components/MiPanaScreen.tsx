@@ -219,66 +219,18 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
     setInput('')
     setIsLoading(true)
 
-    if (provider === 'backend') {
-      try {
-        const reportType = _detectReportType(text)
-        const backendRes = reportType
-          ? await getReportFromBackend(reportType)
-          : await sendToBackend(text)
-
-        const newMsgs: ChatMessage[] = []
-
-        if (backendRes.pdfData) {
-          newMsgs.push({
-            id: makeId(),
-            role: 'assistant',
-            type: 'pdf_ready',
-            timestamp: Date.now(),
-            content: backendRes.text,
-            pdfTitle: backendRes.pdfData.title,
-            period: backendRes.pdfData.period,
-            tableData: backendRes.pdfData.tableData,
-            totalAmount: backendRes.pdfData.totalAmount,
-          })
-        } else {
-          newMsgs.push({
-            id: makeId(),
-            role: 'assistant',
-            type: 'text',
-            timestamp: Date.now(),
-            content: backendRes.text || 'No pude preparar una respuesta.',
-          })
-          if (backendRes.chart) {
-            newMsgs.push({
-              id: makeId(),
-              role: 'assistant',
-              type: 'chart',
-              timestamp: Date.now(),
-              content: '',
-              chartType: backendRes.chart.chartType,
-              title: backendRes.chart.title,
-              data: backendRes.chart.data,
-            })
-          }
-        }
-
-        setUiMessages((prev) => [...prev.filter((m) => m.type !== 'loading'), ...newMsgs])
-      } catch (err) {
-        setUiMessages((prev) => [
-          ...prev.filter((m) => m.type !== 'loading'),
-          {
-            id: makeId(),
-            role: 'assistant',
-            type: 'text',
-            timestamp: Date.now(),
-            content: `Hubo un error: ${err instanceof Error ? err.message : 'Error desconocido'}. Intenta de nuevo.`,
-          },
-        ])
-      } finally {
-        setIsLoading(false)
-      }
-      return
-    }
+    // Backend code commented out - using Groq directly
+    // if (provider === 'backend') {
+    //   try {
+    //     const reportType = _detectReportType(text)
+    //     const backendRes = reportType
+    //       ? await getReportFromBackend(reportType)
+    //       : await sendToBackend(text)
+    //     ...
+    //   } catch (err) { ... }
+    //   finally { setIsLoading(false) }
+    //   return
+    // }
 
     const newHistory: OpenAIMessage[] = [...apiHistory, { role: 'user', content: text }]
     setApiHistory(newHistory)
