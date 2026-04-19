@@ -138,6 +138,39 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
   const [apiHistory, setApiHistory] = useState<OpenAIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const provider: AIProvider | 'backend' = 'groq'
+
+  // Parses <function=name>{...}</function> embedded in text (some models skip structured tool calls)
+  const parseFunctionCalls = (rawText: string): { cleanText: string; uiMsgs: ChatMessage[] } => {
+    const uiMsgs: ChatMessage[] = []
+    const cleanText = rawText.replace(
+      /<function=(\w+)>([\s\S]*?)<\/function>/g,
+      (_, name: string, jsonStr: string) => {
+        try {
+          const args = JSON.parse(jsonStr.trim())
+          if (name === 'show_chart') {
+            uiMsgs.push({
+              id: makeId(), role: 'assistant', type: 'chart', timestamp: Date.now(),
+              content: args.summary ?? '', chartType: args.chart_type,
+              title: args.title, data: args.data,
+            })
+          } else if (name === 'ask_clarification') {
+            uiMsgs.push({
+              id: makeId(), role: 'assistant', type: 'multiple_choice', timestamp: Date.now(),
+              content: args.question, options: args.options, answered: false,
+            })
+          } else if (name === 'generate_pdf_report') {
+            uiMsgs.push({
+              id: makeId(), role: 'assistant', type: 'pdf_ready', timestamp: Date.now(),
+              content: args.summary ?? '', pdfTitle: args.title,
+              period: args.period, tableData: args.table_data, totalAmount: args.total_amount,
+            })
+          }
+        } catch { /* skip malformed */ }
+        return ''
+      }
+    ).trim()
+    return { cleanText, uiMsgs }
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -335,18 +368,16 @@ export default function MiPanaScreen({ onBack }: MiPanaScreenProps) {
           return [...withoutLoader, ...(followUpMsg ? [followUpMsg] : []), ...newUiMsgs]
         })
       } else {
-        const textContent = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
-        setApiHistory([...newHistory, { role: 'assistant', content: textContent }])
-        setUiMessages((prev) => [
-          ...prev.filter((m) => m.type !== 'loading'),
-          {
-            id: makeId(),
-            role: 'assistant',
-            type: 'text',
-            timestamp: Date.now(),
-            content: textContent,
-          },
-        ])
+        const rawText = response.text ?? 'Lo siento, no pude procesar tu mensaje.'
+        const { cleanText, uiMsgs: embeddedMsgs } = parseFunctionCalls(rawText)
+        setApiHistory([...newHistory, { role: 'assistant', content: rawText }])
+        setUiMessages((prev) => {
+          const withoutLoader = prev.filter((m) => m.type !== 'loading')
+          const textMsgs: ChatMessage[] = cleanText
+            ? [{ id: makeId(), role: 'assistant', type: 'text', timestamp: Date.now(), content: cleanText }]
+            : []
+          return [...withoutLoader, ...textMsgs, ...embeddedMsgs]
+        })
       }
     } catch (err) {
       setUiMessages((prev) => [
