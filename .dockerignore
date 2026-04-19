@@ -1,0 +1,17 @@
+# Exclude everything except front-end
+*
+!front-end/
+
+# Exclude from front-end
+front-end/node_modules
+front-end/dist
+front-end/.git
+front-end/.env
+front-end/.gitignore
+front-end/*.log
+front-end/npm-debug.log*
+front-end/.DS_Store
+front-end/.env.local
+front-end/.env.development.local
+front-end/.env.test.local
+front-end/.env.production.local

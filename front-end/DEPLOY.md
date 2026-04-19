@@ -18,9 +18,23 @@ Este documento explica cómo deployar el frontend en Dokploy.
 
 ### 2. Configuración del build
 
-- **Build Context**: `/front-end`
+**IMPORTANTE**: Hay dos Dockerfiles disponibles:
+
+#### Opción A - Dockerfile en raíz (RECOMENDADO para Dokploy)
+- **Ubicación**: `D:\chatbot-ai-hackathon\Dockerfile`
+- **Build Context**: `.` (raíz del proyecto)
+- **Dockerfile Path**: `Dockerfile`
+- **Puerto interno**: `80`
+
+Esta es la opción más simple para Dokploy, ya que usa la configuración por defecto.
+
+#### Opción B - Dockerfile en front-end
+- **Ubicación**: `D:\chatbot-ai-hackathon\front-end\Dockerfile`
+- **Build Context**: `front-end`
 - **Dockerfile Path**: `Dockerfile` (relativo al build context)
 - **Puerto interno**: `80`
+
+Usa esta opción si quieres tener el Dockerfile junto al código fuente.
 
 ### 3. Variables de entorno (opcional)
 
@@ -40,8 +54,18 @@ proxy_pass https://tu-backend.com/;
 
 ## Build local (para testing)
 
+### Opción A - Desde la raíz del proyecto (igual que Dokploy)
 ```bash
-# Desde la carpeta front-end
+# Desde D:\chatbot-ai-hackathon\
+docker build -t frontend-app .
+
+# Correr localmente
+docker run -p 3000:80 frontend-app
+```
+
+### Opción B - Desde la carpeta front-end
+```bash
+# Desde D:\chatbot-ai-hackathon\front-end\
 docker build -t frontend-app .
 
 # Correr localmente
